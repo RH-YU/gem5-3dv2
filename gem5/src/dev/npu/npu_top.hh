@@ -89,11 +89,10 @@ class NpuTop : public sc_core::sc_module
     // VCU engine.
     void vcu_thread();
     void execute_vcu(const ScheduledCommand &command);
-    uint64_t vcu_byte_count(const VcuPayload &payload) const;
-    uint64_t vcu_work_count(const VcuPayload &payload) const;
-    void execute_vcu_load(const VcuPayload &payload);
-    void execute_vcu_store(const VcuPayload &payload);
-    void execute_vcu_add(const VcuPayload &payload);
+    static std::vector<uint8_t> read_vcu_ub(void *owner, uint64_t address,
+                                            uint64_t byte_count);
+    static void write_vcu_ub(void *owner, uint64_t address,
+                             const std::vector<uint8_t> &data);
 
     // Simulator-only GM file I/O engine.
     void gm_file_io_thread();

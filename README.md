@@ -8,7 +8,7 @@
 sudo apt update
 sudo apt install -y build-essential scons python3 python3-dev python3-pip \
     pkg-config zlib1g-dev libprotobuf-dev protobuf-compiler \
-    libgoogle-perftools-dev libboost-all-dev libzstd-dev curl
+    libgoogle-perftools-dev libboost-all-dev libzstd-dev cmake curl
 ```
 
 可选依赖：
@@ -31,16 +31,25 @@ archive="xpack-riscv-none-elf-gcc-15.2.0-1-${pkg}.tar.gz"
 curl -L -o "/tmp/$archive" \
     "https://sourceforge.net/projects/riscv-none-elf-gcc-xpack/files/v15.2.0-1/$archive/download"
 tar -xf "/tmp/$archive" -C riscv_bin
-test -x riscv_bin/xpack-riscv-none-elf-gcc-15.2.0-1/bin/riscv-none-elf-g++
+find riscv_bin -mindepth 2 -maxdepth 2 -type d -name bin -print
+find riscv_bin -path '*/bin/*-g++' -type f -perm -111 -print -quit
+```
+
+## 构建 DRAMsim3
+
+使用 DRAMsim3 时，需要先构建 `gem5/ext/dramsim3/DRAMsim3/libdramsim3.so`，再构建 gem5：
+
+```bash
+cd gem5/ext/dramsim3
+test -d DRAMsim3 || git clone https://github.com/umd-memsys/DRAMSim3.git DRAMsim3
+cd DRAMsim3
+mkdir -p build
+cd build
+cmake ..
+make -j"$(nproc)"
 ```
 
 ## 一键构建与验证
-
-构建 `gem5.opt` 并运行 SystemC NPU MVP 用例：
-
-```bash
-npu-tests/scripts/verify_npu-mvp.sh
-```
 
 构建 `gem5.opt` 并运行 XAI bare-metal smoke 和 multi-NPU 用例：
 
@@ -52,4 +61,11 @@ npu-tests/scripts/verify_xai-elf.sh all
 
 ```bash
 npu-tests/scripts/verify_xai-elf.sh build-gem5
+```
+
+只运行测试程序：
+
+```bash
+npu-tests/scripts/verify_xai-elf.sh run-smoke
+npu-tests/scripts/verify_xai-elf.sh run-multinpu
 ```

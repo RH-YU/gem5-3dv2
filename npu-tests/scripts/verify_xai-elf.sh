@@ -34,29 +34,78 @@ file_index=0
 write_data_fixture="$gm_file_io_root/GMInputFile_${file_hart_id}_${file_index}.bin"
 expected_result_bin="$build_dir/xai_expected.bin"
 actual_result_bin="$gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
-riscv_toolchain_bin="$project_root/riscv_bin/xpack-riscv-none-elf-gcc-15.2.0-1/bin"
-default_riscv_cxx="$riscv_toolchain_bin/riscv-none-elf-g++"
-default_riscv_readelf="$riscv_toolchain_bin/riscv-none-elf-readelf"
-default_riscv_objdump="$riscv_toolchain_bin/riscv-none-elf-objdump"
+riscv_toolchain_root="${RISCV_TOOLCHAIN_ROOT:-$project_root/riscv_bin}"
+riscv_toolchain_bin="${RISCV_TOOLCHAIN_BIN:-}"
+riscv_toolchain_prefix="${RISCV_TOOLCHAIN_PREFIX:-}"
+
+toolchain_bin_candidates()
+{
+    [[ -n "$riscv_toolchain_bin" ]] && printf '%s\n' "$riscv_toolchain_bin"
+    [[ -d "$riscv_toolchain_root/bin" ]] && printf '%s\n' "$riscv_toolchain_root/bin"
+    if [[ -d "$riscv_toolchain_root" ]]; then
+        find "$riscv_toolchain_root" -mindepth 2 -maxdepth 2 -type d -name bin \
+            2>/dev/null | sort
+    fi
+}
+
+toolchain_prefix_candidates()
+{
+    [[ -n "$riscv_toolchain_prefix" ]] && printf '%s\n' "$riscv_toolchain_prefix"
+    printf '%s\n' riscv-none-elf riscv64-unknown-elf riscv64-unknown
+}
+
+tool_exists()
+{
+    local tool=$1
+    [[ -x "$tool" ]] || command -v "$tool" >/dev/null 2>&1
+}
+
+pick_prefixed_tool()
+{
+    local suffix=$1
+    local bin_dir
+    local prefix
+    while IFS= read -r bin_dir; do
+        [[ -n "$bin_dir" ]] || continue
+        while IFS= read -r prefix; do
+            [[ -n "$prefix" ]] || continue
+            if [[ -x "$bin_dir/${prefix}-${suffix}" ]]; then
+                printf '%s\n' "$bin_dir/${prefix}-${suffix}"
+                return 0
+            fi
+        done < <(toolchain_prefix_candidates)
+    done < <(toolchain_bin_candidates)
+
+    while IFS= read -r prefix; do
+        [[ -n "$prefix" ]] || continue
+        if command -v "${prefix}-${suffix}" >/dev/null 2>&1; then
+            printf '%s\n' "${prefix}-${suffix}"
+            return 0
+        fi
+    done < <(toolchain_prefix_candidates)
+
+    return 1
+}
 
 pick_riscv_cxx()
 {
     local tool
     for tool in \
         "${RISCV64_UNKNOWN_ELF_CXX:-}" \
-        "${RISCV_NONE_ELF_CXX:-}" \
-        "$default_riscv_cxx" \
-        riscv-none-elf-g++ \
-        riscv64-unknown-elf-g++
+        "${RISCV_NONE_ELF_CXX:-}"
     do
         [[ -n "$tool" ]] || continue
-        if command -v "$tool" >/dev/null 2>&1; then
+        if tool_exists "$tool"; then
             printf '%s\n' "$tool"
             return 0
         fi
     done
+    if tool=$(pick_prefixed_tool g++); then
+        printf '%s\n' "$tool"
+        return 0
+    fi
 
-    echo "SKIP: no bare-metal RISC-V C++ compiler found; set RISCV64_UNKNOWN_ELF_CXX or RISCV_NONE_ELF_CXX." >&2
+    echo "SKIP: no bare-metal RISC-V C++ compiler found; set RISCV_TOOLCHAIN_BIN/RISCV_TOOLCHAIN_PREFIX or RISCV64_UNKNOWN_ELF_CXX/RISCV_NONE_ELF_CXX." >&2
     exit 0
 }
 
@@ -65,17 +114,18 @@ pick_riscv_readelf()
     local tool
     for tool in \
         "${RISCV64_UNKNOWN_ELF_READELF:-}" \
-        "${RISCV_NONE_ELF_READELF:-}" \
-        "$default_riscv_readelf" \
-        riscv-none-elf-readelf \
-        riscv64-unknown-elf-readelf
+        "${RISCV_NONE_ELF_READELF:-}"
     do
         [[ -n "$tool" ]] || continue
-        if command -v "$tool" >/dev/null 2>&1; then
+        if tool_exists "$tool"; then
             printf '%s\n' "$tool"
             return 0
         fi
     done
+    if tool=$(pick_prefixed_tool readelf); then
+        printf '%s\n' "$tool"
+        return 0
+    fi
 
     return 1
 }
@@ -85,19 +135,20 @@ pick_riscv_objdump()
     local tool
     for tool in \
         "${RISCV_NONE_ELF_OBJDUMP:-}" \
-        "${RISCV64_UNKNOWN_ELF_OBJDUMP:-}" \
-        "$default_riscv_objdump" \
-        riscv-none-elf-objdump \
-        riscv64-unknown-elf-objdump
+        "${RISCV64_UNKNOWN_ELF_OBJDUMP:-}"
     do
         [[ -n "$tool" ]] || continue
-        if command -v "$tool" >/dev/null 2>&1; then
+        if tool_exists "$tool"; then
             printf '%s\n' "$tool"
             return 0
         fi
     done
+    if tool=$(pick_prefixed_tool objdump); then
+        printf '%s\n' "$tool"
+        return 0
+    fi
 
-    echo "SKIP: no RISC-V objdump found; set RISCV_NONE_ELF_OBJDUMP or RISCV64_UNKNOWN_ELF_OBJDUMP." >&2
+    echo "SKIP: no RISC-V objdump found; set RISCV_TOOLCHAIN_BIN/RISCV_TOOLCHAIN_PREFIX or RISCV_NONE_ELF_OBJDUMP/RISCV64_UNKNOWN_ELF_OBJDUMP." >&2
     exit 0
 }
 
