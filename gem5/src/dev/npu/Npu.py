@@ -1,0 +1,106 @@
+from m5.objects.SystemC import SystemC_ScModule
+from m5.objects.Probe import ProbeListenerObject
+from m5.objects.Tlm import TlmTargetSocket
+from m5.params import *
+
+
+class NpuDevice(SystemC_ScModule):
+    type = "NpuDevice"
+    cxx_class = "npu_mvp::NpuDevice"
+    cxx_header = "dev/npu/npu_device.hh"
+
+    tlm = TlmTargetSocket(64, "NPU command target socket")
+
+    npu_id = Param.UInt8(0, "Fixed NPU id")
+    gm_phys_base = Param.UInt64(0x0000000000000000, "NPU GM physical base")
+    gm_size = Param.UInt64(2 * 1024 * 1024 * 1024, "NPU GM byte size")
+    gm_page_size = Param.UInt64(4096, "Sparse GM page size")
+    ub_phys_base = Param.UInt64(0x0000000100000000, "NPU UB physical base")
+    ub_size = Param.UInt64(512 * 1024, "NPU UB byte size")
+    mte_max_transfer_bytes = Param.UInt64(
+        1024 * 1024, "Maximum bytes in one MTE command"
+    )
+
+    max_vl = Param.UInt32(64, "Maximum NPU vector length")
+    vector_register_count = Param.UInt32(32, "NPU vector register count")
+    vector_register_bytes = Param.UInt32(256, "Bytes per NPU vector register")
+
+    scheduler_queue_depth = Param.UInt32(32, "Scheduler ingress queue depth")
+    mte4_queue_depth = Param.UInt32(32, "MTE4 queue depth")
+    mte2_queue_depth = Param.UInt32(32, "MTE2 queue depth")
+    vcu_queue_depth = Param.UInt32(32, "VCU queue depth")
+    gm_file_io_queue_depth = Param.UInt32(32, "Simulator GM file I/O queue depth")
+
+    enable_sim_gm_file_io = Param.Bool(False, "Enable simulator-only GM file I/O commands")
+    sim_gm_file_io_root = Param.String("", "Root directory for GM file I/O fixture files")
+
+    scheduler_dispatch_delay = Param.Latency("1ns", "Scheduler dispatch delay")
+    mte4_setup_delay = Param.Latency("4ns", "MTE4 setup delay")
+    mte2_setup_delay = Param.Latency("4ns", "MTE2 setup delay")
+    gm_file_io_setup_delay = Param.Latency("1ns", "GM file I/O setup delay")
+
+    mte4_bytes_per_ns = Param.Float(16.0, "MTE4 transfer bandwidth")
+    mte2_bytes_per_ns = Param.Float(16.0, "MTE2 transfer bandwidth")
+    gm_file_io_bytes_per_ns = Param.Float(16.0, "GM file I/O bandwidth")
+    vcu_bytes_per_ns = Param.Float(16.0, "VCU load/store bandwidth")
+    vadd_elements_per_ns = Param.Float(16.0, "VCU vector-add throughput")
+
+    vcd_trace_file = Param.String("", "Optional NPU VCD trace output basename")
+    vcd_trace_cycle_ticks = Param.Tick(
+        0, "CPU cycle period in gem5 ticks for NPU VCD cycle alignment"
+    )
+
+
+class NpuCluster(SystemC_ScModule):
+    type = "NpuCluster"
+    cxx_class = "npu_mvp::NpuCluster"
+    cxx_header = "dev/npu/npu_cluster.hh"
+
+    tlm = TlmTargetSocket(64, "Broadcast NPU command target socket")
+
+    npu_count = Param.UInt8(4, "Number of NPU instances in the broadcast cluster")
+    gm_phys_base = Param.UInt64(0x0000000000000000, "NPU GM physical base")
+    gm_size = Param.UInt64(2 * 1024 * 1024 * 1024, "NPU GM byte size")
+    gm_page_size = Param.UInt64(4096, "Sparse GM page size")
+    ub_phys_base = Param.UInt64(0x0000000100000000, "NPU UB physical base")
+    ub_size = Param.UInt64(512 * 1024, "NPU UB byte size")
+    mte_max_transfer_bytes = Param.UInt64(
+        1024 * 1024, "Maximum bytes in one MTE command"
+    )
+
+    max_vl = Param.UInt32(64, "Maximum NPU vector length")
+    vector_register_count = Param.UInt32(32, "NPU vector register count")
+    vector_register_bytes = Param.UInt32(256, "Bytes per NPU vector register")
+
+    scheduler_queue_depth = Param.UInt32(32, "Scheduler ingress queue depth")
+    mte4_queue_depth = Param.UInt32(32, "MTE4 queue depth")
+    mte2_queue_depth = Param.UInt32(32, "MTE2 queue depth")
+    vcu_queue_depth = Param.UInt32(32, "VCU queue depth")
+    gm_file_io_queue_depth = Param.UInt32(32, "Simulator GM file I/O queue depth")
+
+    enable_sim_gm_file_io = Param.Bool(False, "Enable simulator-only GM file I/O commands")
+    sim_gm_file_io_root = Param.String("", "Root directory for GM file I/O fixture files")
+
+    scheduler_dispatch_delay = Param.Latency("1ns", "Scheduler dispatch delay")
+    mte4_setup_delay = Param.Latency("4ns", "MTE4 setup delay")
+    mte2_setup_delay = Param.Latency("4ns", "MTE2 setup delay")
+    gm_file_io_setup_delay = Param.Latency("1ns", "GM file I/O setup delay")
+
+    mte4_bytes_per_ns = Param.Float(16.0, "MTE4 transfer bandwidth")
+    mte2_bytes_per_ns = Param.Float(16.0, "MTE2 transfer bandwidth")
+    gm_file_io_bytes_per_ns = Param.Float(16.0, "GM file I/O bandwidth")
+    vcu_bytes_per_ns = Param.Float(16.0, "VCU load/store bandwidth")
+    vadd_elements_per_ns = Param.Float(16.0, "VCU vector-add throughput")
+
+    vcd_trace_file = Param.String("", "Optional NPU VCD trace output basename")
+    vcd_trace_cycle_ticks = Param.Tick(
+        0, "CPU cycle period in gem5 ticks for NPU VCD cycle alignment"
+    )
+
+
+class NpuCpuVcdProbe(ProbeListenerObject):
+    type = "NpuCpuVcdProbe"
+    cxx_class = "npu_mvp::NpuCpuVcdProbe"
+    cxx_header = "dev/npu/npu_cpu_trace.hh"
+
+    cluster = Param.NpuCluster("NPU cluster that owns the shared VCD trace")

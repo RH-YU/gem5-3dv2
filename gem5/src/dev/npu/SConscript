@@ -1,0 +1,24 @@
+Import('*')
+
+if not env['CONF']['USE_SYSTEMC']:
+    Return()
+
+env.UseSystemcCheck(warn=True)
+
+SimObject('Npu.py', sim_objects=['NpuDevice', 'NpuCluster', 'NpuCpuVcdProbe'])
+
+Source('npu_command.cc')
+Source('npu_cluster.cc')
+Source('npu_cpu_trace.cc')
+Source('npu_device.cc')
+Source('npu_gm_file_io.cc')
+Source('npu_mte_common.cc')
+Source('npu_mte2.cc')
+Source('npu_mte4.cc')
+Source('npu_scheduler.cc')
+Source('npu_storage.cc')
+Source('npu_sync.cc')
+Source('npu_top.cc')
+Source('npu_trace.cc')
+Source('npu_vcu.cc')
+Source('npu_vcu_operation.cc')

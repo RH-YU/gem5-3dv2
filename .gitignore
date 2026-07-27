@@ -1,0 +1,31 @@
+# Ignore everything at the repository root by default.
+/*
+
+# Keep repository metadata and project entry points.
+!/.gitignore
+!/README.md
+
+# Track only the source trees requested for this workspace.
+!/gem5/
+!/gem5/**
+!/npu-tests/
+!/npu-tests/**
+
+# Do not track nested repository metadata.
+gem5/.git/
+
+# Build and simulation outputs.
+gem5/build/
+gem5/m5out/
+npu-tests/build/
+
+# Generated/intermediate files.
+**/__pycache__/
+*.py[cod]
+*.o
+*.d
+*.so
+*.a
+
+# Host/editor metadata.
+.DS_Store
