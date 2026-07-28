@@ -4,7 +4,7 @@
 #include <string>
 
 #include "systemc/ext/dt/bit/sc_bv.hh"
-#include "systemc/ext/dt/bit/sc_uint.hh"
+#include "systemc/ext/dt/int/sc_uint.hh"
 #include "systemc/ext/utils/sc_trace_file.hh"
 
 namespace npu_mvp
