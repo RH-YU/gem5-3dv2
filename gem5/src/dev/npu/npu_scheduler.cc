@@ -6,6 +6,8 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "sim/cur_tick.hh"
+
 namespace npu_mvp
 {
 
@@ -54,6 +56,15 @@ subopcode_value(const NpuCommand &command)
         return 0;
     }
     return 0;
+}
+
+uint64_t
+current_cpu_cycle(uint64_t configured_cycle_ticks)
+{
+    const uint64_t cycle_ticks = active_cpu_cycle_ticks(configured_cycle_ticks);
+    if (cycle_ticks == 0)
+        return 0;
+    return gem5::curTick() / cycle_ticks;
 }
 
 } // anonymous namespace
@@ -146,9 +157,12 @@ NpuTop::route_engine(const NpuCommand &command) const
 void
 NpuTop::trace_command(const NpuCommand &command) const
 {
+    const uint64_t tick = gem5::curTick();
     std::cout << "CPU[" << static_cast<unsigned>(command.hart_id)
               << "]NPU[" << static_cast<unsigned>(config.npu_id)
               << "] : op=" << opcode_name(command)
+              << " cycle=" << current_cpu_cycle(config.vcd_trace_cycle_ticks)
+              << " tick=" << tick
               << " opcode=" << static_cast<unsigned>(command.opcode)
               << " subopcode=" << subopcode_value(command)
               << " mask=0x" << std::hex << static_cast<unsigned>(command.npu_mask)
