@@ -65,6 +65,7 @@ NpuTop::dispatch_ingress()
         if (!dispatch_one(scheduler.ingress_queue.front()))
             return;
         scheduler.ingress_queue.pop_front();
+        trace_queue_sizes();
     }
 }
 
@@ -107,18 +108,22 @@ NpuTop::enqueue_scheduled(Engine engine, ScheduledCommand &&scheduled)
     switch (engine) {
       case Engine::Mte4:
         mte4.queue.push_back(std::move(scheduled));
+        trace_queue_sizes();
         mte4.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::Mte2:
         mte2.queue.push_back(std::move(scheduled));
+        trace_queue_sizes();
         mte2.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::Vcu:
         vcu.queue.push_back(std::move(scheduled));
+        trace_queue_sizes();
         vcu.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::GmFileIo:
         gm_file_io.queue.push_back(std::move(scheduled));
+        trace_queue_sizes();
         gm_file_io.event.notify(sc_core::SC_ZERO_TIME);
         return true;
     }

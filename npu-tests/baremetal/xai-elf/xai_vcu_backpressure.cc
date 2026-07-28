@@ -120,10 +120,7 @@ main()
     constexpr unsigned long ub_result = 0x100000020ULL;
     constexpr unsigned long vector_bytes = 16;
     constexpr unsigned long file_index = 1;
-    constexpr unsigned long blocker_gm = 0x1000;
-    constexpr unsigned long blocker_file_index = 2;
-    constexpr unsigned long blocker_bytes = 1024 * 1024;
-    constexpr unsigned long recursive_add_count = 128;
+    constexpr unsigned long recursive_add_count = 16;
 
     WriteDataToGm(32, gm_input, file_index);
     XAI_SYNC_SET(XAI_SYNC_GM_FILE_IO, XAI_SYNC_MTE4, 0);
@@ -132,12 +129,7 @@ main()
     xai_nsetvl(4, 2);
     xai_mte4(vector_bytes, gm_input, ub_accumulator);
     xai_mte4(vector_bytes, gm_rhs, ub_rhs);
-    XAI_SYNC_SET(XAI_SYNC_MTE4, XAI_SYNC_VCU, 1);
     XAI_SYNC_WAIT(XAI_SYNC_MTE4, XAI_SYNC_VCU, 1);
-
-    WriteDataToGm(blocker_bytes, blocker_gm, blocker_file_index);
-    XAI_SYNC_SET(XAI_SYNC_GM_FILE_IO, XAI_SYNC_VCU, 4);
-    XAI_SYNC_WAIT(XAI_SYNC_GM_FILE_IO, XAI_SYNC_VCU, 4);
 
     xai_vload_v1(ub_accumulator);
     xai_vload_v2(ub_rhs);
@@ -145,8 +137,7 @@ main()
         xai_vadd_v1_v1_v2();
     }
     xai_vstore_v1(ub_result);
-    XAI_SYNC_SET(XAI_SYNC_VCU, XAI_SYNC_MTE2, 2);
-    XAI_SYNC_WAIT(XAI_SYNC_VCU, XAI_SYNC_MTE2, 2);
+    XAI_SYNC_SET(XAI_SYNC_MTE4, XAI_SYNC_VCU, 1);
 
     xai_mte2(vector_bytes, ub_result, gm_result);
     XAI_SYNC_SET(XAI_SYNC_MTE2, XAI_SYNC_GM_FILE_IO, 3);

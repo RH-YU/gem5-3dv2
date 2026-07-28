@@ -4,6 +4,7 @@
 #include <string>
 
 #include "systemc/ext/dt/bit/sc_bv.hh"
+#include "systemc/ext/dt/bit/sc_uint.hh"
 #include "systemc/ext/utils/sc_trace_file.hh"
 
 namespace npu_mvp
@@ -21,6 +22,11 @@ struct NpuTraceSignals
     bool mte2_busy = false;
     bool vcu_busy = false;
     bool gm_file_io_busy = false;
+    sc_dt::sc_uint<32> scheduler_queue_size = 0;
+    sc_dt::sc_uint<32> mte4_queue_size = 0;
+    sc_dt::sc_uint<32> mte2_queue_size = 0;
+    sc_dt::sc_uint<32> vcu_queue_size = 0;
+    sc_dt::sc_uint<32> gm_file_io_queue_size = 0;
     sc_dt::sc_bv<32> mte4_instruction = sc_dt::sc_bv<32>(0);
     sc_dt::sc_bv<32> mte2_instruction = sc_dt::sc_bv<32>(0);
     sc_dt::sc_bv<32> vcu_instruction = sc_dt::sc_bv<32>(0);

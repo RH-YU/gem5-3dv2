@@ -91,6 +91,7 @@ NpuTop::gm_file_io_thread()
         while (!gm_file_io.queue.empty()) {
             ScheduledCommand command = std::move(gm_file_io.queue.front());
             gm_file_io.queue.pop_front();
+            trace_queue_sizes();
             gm_file_io.busy = true;
             trace_engine_start(Engine::GmFileIo, command.command.raw_instruction);
             if (command.command.opcode == Opcode::Sync) {

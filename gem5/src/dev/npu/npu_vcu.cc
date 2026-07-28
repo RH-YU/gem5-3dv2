@@ -44,6 +44,7 @@ NpuTop::vcu_thread()
         while (!vcu.queue.empty()) {
             ScheduledCommand command = std::move(vcu.queue.front());
             vcu.queue.pop_front();
+            trace_queue_sizes();
             vcu.busy = true;
             trace_engine_start(Engine::Vcu, command.command.raw_instruction);
             if (!command.vcu_payload.has_value()) {

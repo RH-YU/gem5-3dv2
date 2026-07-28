@@ -84,6 +84,7 @@ NpuTop::submit(const NpuCommand &command)
     if (!can_accept(command))
         return SubmitResult::Backpressured;
     scheduler.ingress_queue.push_back(command);
+    trace_queue_sizes();
     trace_ingress();
     scheduler.dispatch_event.notify(sc_core::SC_ZERO_TIME);
     return SubmitResult::Accepted;
@@ -233,6 +234,21 @@ NpuTop::trace_fault()
         return;
 
     trace_signals.fault_event = !trace_signals.fault_event;
+}
+
+void
+NpuTop::trace_queue_sizes()
+{
+    if (trace_file == nullptr)
+        return;
+
+    trace_signals.scheduler_queue_size =
+            static_cast<uint32_t>(scheduler.ingress_queue.size());
+    trace_signals.mte4_queue_size = static_cast<uint32_t>(mte4.queue.size());
+    trace_signals.mte2_queue_size = static_cast<uint32_t>(mte2.queue.size());
+    trace_signals.vcu_queue_size = static_cast<uint32_t>(vcu.queue.size());
+    trace_signals.gm_file_io_queue_size =
+            static_cast<uint32_t>(gm_file_io.queue.size());
 }
 
 void

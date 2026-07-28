@@ -14,6 +14,7 @@ NpuTop::mte2_thread()
         while (!mte2.queue.empty()) {
             ScheduledCommand command = std::move(mte2.queue.front());
             mte2.queue.pop_front();
+            trace_queue_sizes();
             mte2.busy = true;
             trace_engine_start(Engine::Mte2, command.command.raw_instruction);
             if (command.command.opcode == Opcode::Sync) {

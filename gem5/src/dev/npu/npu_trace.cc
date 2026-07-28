@@ -97,6 +97,16 @@ register_npu_trace_signals(sc_core::sc_trace_file *trace_file,
     sc_core::sc_trace(trace_file, signals.vcu_busy, scope + ".vcu_busy");
     sc_core::sc_trace(trace_file, signals.gm_file_io_busy,
                       scope + ".gm_file_io_busy");
+    sc_core::sc_trace(trace_file, signals.scheduler_queue_size,
+                      scope + ".scheduler_queue_size");
+    sc_core::sc_trace(trace_file, signals.mte4_queue_size,
+                      scope + ".mte4_queue_size");
+    sc_core::sc_trace(trace_file, signals.mte2_queue_size,
+                      scope + ".mte2_queue_size");
+    sc_core::sc_trace(trace_file, signals.vcu_queue_size,
+                      scope + ".vcu_queue_size");
+    sc_core::sc_trace(trace_file, signals.gm_file_io_queue_size,
+                      scope + ".gm_file_io_queue_size");
     sc_core::sc_trace(trace_file, signals.mte4_instruction,
                       scope + ".mte4_instruction");
     sc_core::sc_trace(trace_file, signals.mte2_instruction,
