@@ -68,6 +68,10 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
                 sc_core::sc_time::from_value(trace_cycle_ticks),
                 0.5, sc_core::SC_ZERO_TIME, true)
 {
+    SC_METHOD(clear_cpu_commit_trace);
+    dont_initialize();
+    sensitive << cpu_commit_clear_event;
+
     if (npu_count == 0 || npu_count > 4)
         fatal("NpuCluster npu_count must be in the range [1, 4].");
 
@@ -81,7 +85,6 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
     if (!trace_basename.empty()) {
         trace_file = sc_core::sc_create_vcd_trace_file(trace_basename.c_str());
         configure_vcd_trace_time_unit(trace_file, trace_cycle_ticks);
-        register_cluster_trace_signals(trace_file, trace_signals, "cluster");
         register_cpu_trace_signals(trace_file, trace_signals, "cpu");
         sc_core::sc_trace(trace_file, npu_clock, "cluster.npu_clock");
     }
@@ -133,9 +136,18 @@ NpuCluster::record_cpu_commit(uint32_t pc, uint32_t instruction)
         return;
 
     trace_signals.cpu_commit_event = !trace_signals.cpu_commit_event;
-    trace_signals.cpu_commit_valid = !trace_signals.cpu_commit_valid;
+    trace_signals.cpu_commit_valid = true;
     trace_signals.cpu_commit_pc = pc;
     trace_signals.cpu_commit_insn = instruction;
+
+    cpu_commit_clear_event.cancel();
+    cpu_commit_clear_event.notify(sc_core::sc_time::from_value(trace_cycle_ticks));
+}
+
+void
+NpuCluster::clear_cpu_commit_trace()
+{
+    trace_signals.cpu_commit_valid = false;
 }
 
 void
@@ -145,7 +157,6 @@ NpuCluster::trace_cpu_command()
         return;
 
     trace_signals.cpu_cmd_event = !trace_signals.cpu_cmd_event;
-    trace_signals.cpu_instruction_event = !trace_signals.cpu_instruction_event;
 }
 
 void

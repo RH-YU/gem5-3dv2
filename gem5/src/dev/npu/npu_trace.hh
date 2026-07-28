@@ -37,7 +37,6 @@ struct NpuClusterTraceSignals
 {
     bool cpu_cmd_event = false;
     bool cpu_backpressure_event = false;
-    bool cpu_instruction_event = false;
     bool cpu_commit_event = false;
     bool cpu_commit_valid = false;
     sc_dt::sc_bv<32> cpu_commit_pc = sc_dt::sc_bv<32>(0);
@@ -48,9 +47,6 @@ std::string normalize_vcd_trace_basename(const std::string &trace_file);
 uint64_t active_cpu_cycle_ticks(uint64_t configured_cycle_ticks);
 void configure_vcd_trace_time_unit(sc_core::sc_trace_file *trace_file,
                                    uint64_t configured_cycle_ticks);
-void register_cluster_trace_signals(sc_core::sc_trace_file *trace_file,
-                                    NpuClusterTraceSignals &signals,
-                                    const std::string &scope);
 void register_cpu_trace_signals(sc_core::sc_trace_file *trace_file,
                                 NpuClusterTraceSignals &signals,
                                 const std::string &scope);

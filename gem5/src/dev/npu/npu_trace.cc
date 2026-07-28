@@ -52,21 +52,6 @@ configure_vcd_trace_time_unit(sc_core::sc_trace_file *trace_file,
 }
 
 void
-register_cluster_trace_signals(sc_core::sc_trace_file *trace_file,
-                               NpuClusterTraceSignals &signals,
-                               const std::string &scope)
-{
-    if (trace_file == nullptr)
-        return;
-
-    sc_core::sc_trace(trace_file, signals.cpu_cmd_event, scope + ".cpu_cmd_event");
-    sc_core::sc_trace(trace_file, signals.cpu_backpressure_event,
-                      scope + ".cpu_backpressure_event");
-    sc_core::sc_trace(trace_file, signals.cpu_instruction_event,
-                      scope + ".cpu_instruction_event");
-}
-
-void
 register_cpu_trace_signals(sc_core::sc_trace_file *trace_file,
                            NpuClusterTraceSignals &signals,
                            const std::string &scope)
@@ -74,6 +59,10 @@ register_cpu_trace_signals(sc_core::sc_trace_file *trace_file,
     if (trace_file == nullptr)
         return;
 
+    sc_core::sc_trace(trace_file, signals.cpu_cmd_event,
+                      scope + ".cmd_event");
+    sc_core::sc_trace(trace_file, signals.cpu_backpressure_event,
+                      scope + ".backpressure_event");
     sc_core::sc_trace(trace_file, signals.cpu_commit_event,
                       scope + ".commit_event");
     sc_core::sc_trace(trace_file, signals.cpu_commit_valid,
