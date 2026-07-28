@@ -60,9 +60,9 @@ register_cpu_trace_signals(sc_core::sc_trace_file *trace_file,
         return;
 
     sc_core::sc_trace(trace_file, signals.cpu_cmd_event,
-                      scope + ".cmd_event");
+                      scope + ".npu_cmd_event");
     sc_core::sc_trace(trace_file, signals.cpu_backpressure_event,
-                      scope + ".backpressure_event");
+                      scope + ".npu_backpressure_event");
     sc_core::sc_trace(trace_file, signals.cpu_commit_event,
                       scope + ".commit_event");
     sc_core::sc_trace(trace_file, signals.cpu_commit_valid,

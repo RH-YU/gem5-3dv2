@@ -24,15 +24,18 @@ gem5_output_dir="$build_dir/gem5_output"
 gem5_log="$gem5_output_dir/xai_smoke.log"
 multinpu_log="$gem5_output_dir/xai_multinpu_smoke.log"
 vcu_backpressure_log="$gem5_output_dir/xai_vcu_backpressure.log"
+vcu_backpressure_cache_debug_log="$gem5_output_dir/xai_vcu_backpressure_cache_debug.log"
 m5out_dir="$gem5_output_dir/m5out"
 multinpu_m5out_dir="$gem5_output_dir/multinpu_m5out"
 vcu_backpressure_m5out_dir="$gem5_output_dir/vcu_backpressure_m5out"
+vcu_backpressure_cache_debug_m5out_dir="$gem5_output_dir/vcu_backpressure_cache_debug_m5out"
 smoke_vcd_base="xai_smoke_npu_trace"
 smoke_vcd_file="$m5out_dir/${smoke_vcd_base}.vcd"
 multinpu_vcd_base="xai_multinpu_npu_trace"
 multinpu_vcd_file="$multinpu_m5out_dir/${multinpu_vcd_base}.vcd"
 vcu_backpressure_vcd_base="xai_vcu_backpressure_npu_trace"
 vcu_backpressure_vcd_file="$vcu_backpressure_m5out_dir/${vcu_backpressure_vcd_base}.vcd"
+vcu_backpressure_cache_debug_vcd_file="$vcu_backpressure_cache_debug_m5out_dir/${vcu_backpressure_vcd_base}.vcd"
 dramsim3_output_dir="$gem5_output_dir/dramsim3"
 gm_file_io_root="$build_dir/gm_file_io"
 multinpu_gm_file_io_root="$build_dir/gm_file_io_multinpu"
@@ -180,7 +183,7 @@ emit_asm()
 
 usage()
 {
-    echo "Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure]" >&2
+    echo "Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure|run-vcu-backpressure-cache-debug]" >&2
 }
 
 check_host()
@@ -283,7 +286,15 @@ run_xai_sim()
     local gm_root=$5
     local vcd_base=$6
     local npu_count=${7:-}
+    local debug_file=${8:-}
 
+    local gem5_args=("$gem5_bin")
+    if [[ -n "$debug_file" ]]; then
+        gem5_args+=(
+            --debug-flags=SimpleCPU,Cache,CachePort,MSHR
+            --debug-file="$debug_file"
+        )
+    fi
     local sim_args=(
         --outdir="$m5out"
         "$gem5_config"
@@ -306,9 +317,9 @@ run_xai_sim()
     fi
     sim_args+=(--mem-size 2GB)
 
-    echo "+ timeout ${timeout_seconds}s $gem5_bin ${sim_args[*]}"
+    echo "+ timeout ${timeout_seconds}s ${gem5_args[*]} ${sim_args[*]}"
     set +e
-    timeout "${timeout_seconds}s" "$gem5_bin" "${sim_args[@]}" \
+    timeout "${timeout_seconds}s" "${gem5_args[@]}" "${sim_args[@]}" \
         >"$log_file" 2>&1
     local status=$?
     set -e
@@ -367,8 +378,8 @@ required = [
     "$timescale",
     "$scope module cluster $end",
     "$scope module cpu $end",
-    "cmd_event",
-    "backpressure_event",
+    "npu_cmd_event",
+    "npu_backpressure_event",
     "npu_clock",
     "commit_event",
     "commit_valid",
@@ -661,6 +672,16 @@ run_vcu_backpressure_sim()
         "$vcu_backpressure_vcd_base"
 }
 
+run_vcu_backpressure_cache_debug_sim()
+{
+    rm -f "$vcu_backpressure_cache_debug_vcd_file" \
+        "$vcu_backpressure_cache_debug_m5out_dir/icache_debug.log"
+    run_xai_sim 60 "$vcu_backpressure_cache_debug_log" \
+        "$vcu_backpressure_cache_debug_m5out_dir" \
+        "$vcu_backpressure_elf" "$vcu_backpressure_gm_file_io_root" \
+        "$vcu_backpressure_vcd_base" "" "icache_debug.log"
+}
+
 check_vcu_backpressure_log()
 {
     check_xai_log_common "VCU backpressure" "$vcu_backpressure_log"
@@ -694,6 +715,19 @@ run_vcu_backpressure()
     echo "PASS: recursive VCU vadd flow grew the VCU FIFO."
 }
 
+run_vcu_backpressure_cache_debug()
+{
+    require_gem5
+    generate_vcu_backpressure_data
+    compile_xai_elf "$vcu_backpressure_src" "$vcu_backpressure_elf" \
+        "$vcu_backpressure_asm_file"
+    check_xai_elf "VCU backpressure" "$vcu_backpressure_elf"
+    run_vcu_backpressure_cache_debug_sim
+    check_xai_log_common "VCU backpressure cache debug" \
+        "$vcu_backpressure_cache_debug_log"
+    echo "PASS: VCU backpressure cache debug log generated at $vcu_backpressure_cache_debug_m5out_dir/icache_debug.log"
+}
+
 phase=${1:-all}
 if [[ $# -gt 1 ]]; then
     usage
@@ -703,7 +737,8 @@ fi
 check_host
 cd "$project_root"
 mkdir -p "$build_dir" "$m5out_dir" "$multinpu_m5out_dir" "$dramsim3_output_dir" \
-    "$vcu_backpressure_m5out_dir" "$gm_file_io_root" \
+    "$vcu_backpressure_m5out_dir" "$vcu_backpressure_cache_debug_m5out_dir" \
+    "$gm_file_io_root" \
     "$multinpu_gm_file_io_root" "$vcu_backpressure_gm_file_io_root" \
     "$multinpu_expected_root"
 
@@ -725,6 +760,9 @@ case "$phase" in
         ;;
     run-vcu-backpressure)
         run_vcu_backpressure
+        ;;
+    run-vcu-backpressure-cache-debug)
+        run_vcu_backpressure_cache_debug
         ;;
     -h|--help|help)
         usage
