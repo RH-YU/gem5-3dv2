@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dev/npu/npu_types.hh"
+#include "base/types.hh"
 #include "mem/packet.hh"
 #include "systemc/ext/tlm_core/2/generic_payload/gp.hh"
 
@@ -27,5 +28,19 @@ class NpuCommandExtension : public tlm::tlm_extension<NpuCommandExtension>
 };
 
 void registerNpuPacketConversionStep();
+
+class NpuCommandTarget
+{
+  public:
+    virtual ~NpuCommandTarget() = default;
+    virtual DispatchStatus submitNpuCommand(const NpuCommand &command) = 0;
+};
+
+void registerNpuCommandTarget(gem5::Addr command_base,
+                              NpuCommandTarget &target);
+void unregisterNpuCommandTarget(gem5::Addr command_base,
+                                NpuCommandTarget &target);
+DispatchStatus submitNpuCommandDirect(gem5::Addr command_base,
+                                      const NpuCommand &command);
 
 } // namespace npu_mvp

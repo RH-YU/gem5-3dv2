@@ -62,37 +62,13 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
 }
 
 Fault
-sendXaiCommandAtomic(ExecContext *xc, const npu_mvp::NpuCommand &command)
+sendXaiCommandDirect(ExecContext *xc, const npu_mvp::NpuCommand &command)
 {
     auto *isa = dynamic_cast<RiscvISA::ISA *>(xc->tcBase()->getIsaPtr());
     panic_if(isa == nullptr, "Xai dispatch requires a RISC-V ISA object.");
 
-    auto *port = dynamic_cast<RequestPort *>(
-            &xc->tcBase()->getCpuPtr()->getDataPort());
-    if (port == nullptr) {
-        return std::make_shared<IllegalInstFault>(
-                "Xai dispatch requires a request data port",
-                command.raw_instruction);
-    }
-
-    uint64_t payload = command.raw_instruction;
-    auto request = std::make_shared<Request>(
-            isa->npuCmdBase(), sizeof(payload), Request::UNCACHEABLE,
-            Request::funcRequestorId);
-    auto *packet = new Packet(request, MemCmd::WriteReq);
-    packet->dataDynamic(new uint8_t[sizeof(payload)]);
-    packet->setData(reinterpret_cast<const uint8_t *>(&payload));
-    auto *sender_state = new npu_mvp::NpuCommandSenderState(command);
-    packet->pushSenderState(sender_state);
-
-    port->sendAtomic(packet);
-
-    panic_if(packet->popSenderState() != sender_state,
-             "Xai dispatch sender state stack was corrupted.");
-    const auto dispatch_status = sender_state->status;
-    delete sender_state;
-    delete packet;
-
+    const auto dispatch_status =
+            npu_mvp::submitNpuCommandDirect(isa->npuCmdBase(), command);
     if (dispatch_status == npu_mvp::DispatchStatus::Backpressured)
         return std::make_shared<ReExec>();
     if (dispatch_status == npu_mvp::DispatchStatus::Invalid) {
@@ -115,7 +91,7 @@ dispatchXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
     const auto command = buildXaiCommand(
             xc, mach_inst, opcode, rd_value, rs1_value, rs2_value,
             vcu_opcode, sync_opcode, gm_file_io_opcode);
-    return sendXaiCommandAtomic(xc, command);
+    return sendXaiCommandDirect(xc, command);
 }
 
 } // anonymous namespace

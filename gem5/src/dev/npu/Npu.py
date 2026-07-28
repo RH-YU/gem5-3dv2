@@ -12,6 +12,7 @@ class NpuDevice(SystemC_ScModule):
     tlm = TlmTargetSocket(64, "NPU command target socket")
 
     npu_id = Param.UInt8(0, "Fixed NPU id")
+    npu_command_base = Param.Addr(0, "CPU-visible NPU command aperture base")
     gm_phys_base = Param.UInt64(0x0000000000000000, "NPU GM physical base")
     gm_size = Param.UInt64(2 * 1024 * 1024 * 1024, "NPU GM byte size")
     gm_page_size = Param.UInt64(4096, "Sparse GM page size")
@@ -59,6 +60,7 @@ class NpuCluster(SystemC_ScModule):
     tlm = TlmTargetSocket(64, "Broadcast NPU command target socket")
 
     npu_count = Param.UInt8(4, "Number of NPU instances in the broadcast cluster")
+    npu_command_base = Param.Addr(0, "CPU-visible NPU command aperture base")
     gm_phys_base = Param.UInt64(0x0000000000000000, "NPU GM physical base")
     gm_size = Param.UInt64(2 * 1024 * 1024 * 1024, "NPU GM byte size")
     gm_page_size = Param.UInt64(4096, "Sparse GM page size")

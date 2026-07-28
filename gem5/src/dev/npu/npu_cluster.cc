@@ -20,6 +20,7 @@ npu_mvp::NpuConfig
 make_config(const gem5::NpuClusterParams &params)
 {
     npu_mvp::NpuConfig config;
+    config.npu_command_base = params.npu_command_base;
     config.gm_phys_base = params.gm_phys_base;
     config.gm_size = params.gm_size;
     config.gm_page_size = params.gm_page_size;
@@ -60,6 +61,7 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
     : sc_core::sc_module(name),
       command_target("command_target"),
       tlm_wrapper(command_target, std::string(name) + ".tlm", gem5::InvalidPortID),
+      command_base(config.npu_command_base),
       dispatch_delay(config.scheduler_dispatch_delay),
       trace_cycle_ticks(active_cpu_cycle_ticks(config.vcd_trace_cycle_ticks)),
       npu_clock("npu_clock",
@@ -70,6 +72,8 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
         fatal("NpuCluster npu_count must be in the range [1, 4].");
 
     registerNpuPacketConversionStep();
+    if (command_base != 0)
+        registerNpuCommandTarget(command_base, *this);
     command_target.register_b_transport(this, &NpuCluster::b_transport);
 
     const std::string trace_basename =
@@ -93,6 +97,8 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
 
 NpuCluster::~NpuCluster()
 {
+    if (command_base != 0)
+        unregisterNpuCommandTarget(command_base, *this);
     if (trace_file != nullptr)
         sc_core::sc_close_vcd_trace_file(trace_file);
 }
@@ -151,6 +157,32 @@ NpuCluster::trace_cpu_backpressure()
     trace_signals.cpu_backpressure_event = !trace_signals.cpu_backpressure_event;
 }
 
+DispatchStatus
+NpuCluster::submitNpuCommand(const NpuCommand &command)
+{
+    trace_cpu_command();
+    bool backpressured = false;
+    bool invalid = false;
+    for (const auto &npu : npus) {
+        if (!npu->can_accept(command)) {
+            backpressured = true;
+            break;
+        }
+    }
+
+    if (backpressured) {
+        trace_cpu_backpressure();
+        return DispatchStatus::Backpressured;
+    }
+
+    for (const auto &npu : npus) {
+        const SubmitResult result = npu->submit(command);
+        invalid = invalid || result == SubmitResult::Invalid;
+    }
+
+    return invalid ? DispatchStatus::Invalid : DispatchStatus::Accepted;
+}
+
 void
 NpuCluster::b_transport(tlm::tlm_generic_payload &transaction,
                         sc_core::sc_time &delay)
@@ -160,38 +192,19 @@ NpuCluster::b_transport(tlm::tlm_generic_payload &transaction,
         transaction.set_response_status(tlm::TLM_COMMAND_ERROR_RESPONSE);
         return;
     }
-    trace_cpu_command();
-    bool backpressured = false;
-    bool invalid = false;
-    for (const auto &npu : npus) {
-        if (!npu->can_accept(extension->command)) {
-            backpressured = true;
-            break;
-        }
-    }
 
-    if (backpressured) {
-        if (extension->sender_state != nullptr)
-            extension->sender_state->status = DispatchStatus::Backpressured;
-        trace_cpu_backpressure();
+    const DispatchStatus status = submitNpuCommand(extension->command);
+    if (extension->sender_state != nullptr)
+        extension->sender_state->status = status;
+
+    if (status == DispatchStatus::Backpressured) {
         transaction.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
         return;
     }
-
-    for (const auto &npu : npus) {
-        const SubmitResult result = npu->submit(extension->command);
-        invalid = invalid || result == SubmitResult::Invalid;
-    }
-
-    if (invalid) {
-        if (extension->sender_state != nullptr)
-            extension->sender_state->status = DispatchStatus::Invalid;
+    if (status == DispatchStatus::Invalid) {
         transaction.set_response_status(tlm::TLM_COMMAND_ERROR_RESPONSE);
         return;
     }
-
-    if (extension->sender_state != nullptr)
-        extension->sender_state->status = DispatchStatus::Accepted;
 
     transaction.set_response_status(tlm::TLM_OK_RESPONSE);
 }

@@ -266,6 +266,7 @@ def attach_npu(system, args):
     cpu_cycle_ticks = cpu_cycle_ticks_from_clock(args.cpu_clock)
 
     system.npu = NpuCluster(
+        npu_command_base=cmd_base,
         npu_count=args.npu_count,
         enable_sim_gm_file_io=args.npu_enable_sim_gm_file_io,
         sim_gm_file_io_root=args.npu_sim_gm_file_io_root,

@@ -27,6 +27,12 @@ active_cpu_cycle_ticks(uint64_t configured_cycle_ticks)
     return gem5::getCpuClockPeriod();
 }
 
+uint64_t
+vcd_trace_time_unit_ticks(uint64_t cycle_ticks)
+{
+    return cycle_ticks <= 1 ? 1 : cycle_ticks / 2;
+}
+
 void
 configure_vcd_trace_time_unit(sc_core::sc_trace_file *trace_file,
                               uint64_t configured_cycle_ticks)
@@ -38,8 +44,10 @@ configure_vcd_trace_time_unit(sc_core::sc_trace_file *trace_file,
     if (cycle_ticks == 0)
         return;
 
+    const uint64_t time_unit_ticks = vcd_trace_time_unit_ticks(cycle_ticks);
     const double seconds =
-            static_cast<double>(cycle_ticks) / gem5::sim_clock::as_float::s;
+            static_cast<double>(time_unit_ticks) /
+            gem5::sim_clock::as_float::s;
     trace_file->set_time_unit(seconds, sc_core::SC_SEC);
 }
 

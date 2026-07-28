@@ -18,6 +18,7 @@ make_config(const gem5::NpuDeviceParams &params)
 {
     npu_mvp::NpuConfig config;
     config.npu_id = params.npu_id;
+    config.npu_command_base = params.npu_command_base;
     config.gm_phys_base = params.gm_phys_base;
     config.gm_size = params.gm_size;
     config.gm_page_size = params.gm_page_size;
@@ -55,10 +56,19 @@ namespace npu_mvp
 
 NpuDevice::NpuDevice(const char *name, const NpuConfig &config)
     : sc_core::sc_module(sc_core::sc_module_name(name)), npu("top", config),
+      command_base(config.npu_command_base),
       tlm_wrapper(npu.command_target, std::string(name) + ".tlm",
                   gem5::InvalidPortID)
 {
     registerNpuPacketConversionStep();
+    if (command_base != 0)
+        registerNpuCommandTarget(command_base, *this);
+}
+
+NpuDevice::~NpuDevice()
+{
+    if (command_base != 0)
+        unregisterNpuCommandTarget(command_base, *this);
 }
 
 gem5::Port &
@@ -68,6 +78,17 @@ NpuDevice::gem5_getPort(const std::string &if_name, int idx)
         return tlm_wrapper;
 
     fatal("NpuDevice has no port named %s[%d].", if_name, idx);
+}
+
+DispatchStatus
+NpuDevice::submitNpuCommand(const NpuCommand &command)
+{
+    if (!npu.can_accept(command))
+        return DispatchStatus::Backpressured;
+
+    const SubmitResult result = npu.submit(command);
+    return result == SubmitResult::Invalid ? DispatchStatus::Invalid
+                                           : DispatchStatus::Accepted;
 }
 
 NpuTop &
