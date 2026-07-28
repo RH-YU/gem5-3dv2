@@ -141,6 +141,31 @@ def cpu_cycle_ticks_from_clock(clock):
     return max(1, int(round(GEM5_TICKS_PER_SECOND / frequency_hz)))
 
 
+def attach_private_l1_caches(cpu, membus):
+    cpu.addPrivateSplitL1Caches(
+        Cache(
+            size="16kB",
+            assoc=2,
+            tag_latency=1,
+            data_latency=1,
+            response_latency=1,
+            mshrs=4,
+            tgts_per_mshr=8,
+            is_read_only=True,
+        ),
+        Cache(
+            size="16kB",
+            assoc=2,
+            tag_latency=1,
+            data_latency=1,
+            response_latency=1,
+            mshrs=8,
+            tgts_per_mshr=8,
+        ),
+    )
+    cpu.connectCachedPorts(membus.cpu_side_ports)
+
+
 def finish_in_order_baremetal_system(args, system, cpu_class, ruby):
     if ruby:
         fatal("The NPU in-order bare-metal runner currently supports classic memory only.")
@@ -170,7 +195,7 @@ def finish_in_order_baremetal_system(args, system, cpu_class, ruby):
         cpu.mmu.functional = args.functional_tlb
         cpu.createThreads()
         cpu.createInterruptController()
-        cpu.connectBus(system.membus)
+        attach_private_l1_caches(cpu, system.membus)
         print("Create threads for NPU bare-metal CPU ({})".format(type(cpu)))
 
     MemConfig.config_mem(args, system)

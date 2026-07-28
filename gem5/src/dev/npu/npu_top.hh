@@ -90,6 +90,7 @@ class NpuTop : public sc_core::sc_module
 
     // VCU engine.
     void vcu_thread();
+    void execute_vcu_nsetvl(const ScheduledCommand &command);
     void execute_vcu(const ScheduledCommand &command);
     static std::vector<uint8_t> read_vcu_ub(void *owner, uint64_t address,
                                             uint64_t byte_count);

@@ -69,9 +69,6 @@ NpuTop::can_accept(const NpuCommand &command) const
     if (scheduler.ingress_queue.size() >= config.scheduler_queue_depth)
         return false;
 
-    if (command.opcode == Opcode::Vcu && command.vcu_opcode == VcuOpcode::Nsetvl)
-        return true;
-
     return engine_has_space(route_engine(command));
 }
 

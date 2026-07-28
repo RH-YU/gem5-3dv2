@@ -67,6 +67,13 @@ current_cpu_cycle(uint64_t configured_cycle_ticks)
     return gem5::curTick() / cycle_ticks;
 }
 
+bool
+is_vcu_nsetvl(const NpuCommand &command)
+{
+    return command.opcode == Opcode::Vcu &&
+           command.vcu_opcode == VcuOpcode::Nsetvl;
+}
+
 } // anonymous namespace
 
 void
@@ -83,21 +90,12 @@ NpuTop::dispatch_ingress()
 bool
 NpuTop::dispatch_one(const NpuCommand &command)
 {
-    if (command.opcode == Opcode::Vcu &&
-        command.vcu_opcode == VcuOpcode::Nsetvl) {
-        auto &context = vcu_context_for(command.hart_id);
-        context.eew_bytes = decode_eew_bytes(command.rs2_value);
-        context.nvl = std::min<uint64_t>(command.rs1_value, config.max_vl);
-        trace_dispatch();
-        trace_command(command);
-        return true;
-    }
-
     const VcuContext context = vcu_context_for(command.hart_id);
     const auto vcu_payload = make_vcu_payload(command, context);
     const Engine engine = route_engine(command);
 
-    if (command.opcode == Opcode::Vcu && !vcu_payload.has_value())
+    if (command.opcode == Opcode::Vcu && !is_vcu_nsetvl(command) &&
+        !vcu_payload.has_value())
         throw std::logic_error("VCU opcode has no operation descriptor");
 
     if (!engine_has_space(engine))

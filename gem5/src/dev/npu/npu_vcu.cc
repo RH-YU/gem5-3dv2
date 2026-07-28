@@ -1,9 +1,18 @@
 #include "dev/npu/npu_vcu.hh"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace npu_mvp
 {
+
+void
+NpuTop::execute_vcu_nsetvl(const ScheduledCommand &command)
+{
+    auto &context = vcu_context_for(command.command.hart_id);
+    context.eew_bytes = decode_eew_bytes(command.command.rs2_value);
+    context.nvl = std::min<uint64_t>(command.command.rs1_value, config.max_vl);
+}
 
 void
 NpuTop::execute_vcu(const ScheduledCommand &command)
@@ -47,8 +56,15 @@ NpuTop::vcu_thread()
             trace_queue_sizes();
             vcu.busy = true;
             trace_engine_start(Engine::Vcu, command.command.raw_instruction);
-            if (!command.vcu_payload.has_value()) {
+            if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
+            } else if (command.command.vcu_opcode == VcuOpcode::Nsetvl) {
+                wait(config.scheduler_dispatch_delay);
+                try {
+                    execute_vcu_nsetvl(command);
+                } catch (const std::exception &error) {
+                    fault(command, error.what());
+                }
             } else {
                 try {
                     const auto &payload = *command.vcu_payload;
