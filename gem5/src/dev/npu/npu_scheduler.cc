@@ -13,21 +13,47 @@ namespace
 {
 
 const char *
-opcode_name(Opcode opcode)
+opcode_name(const NpuCommand &command)
 {
-    if (const auto *operation = find_vcu_operation(opcode))
-        return operation->name;
+    if (command.opcode == Opcode::Vcu) {
+        if (command.vcu_opcode == VcuOpcode::Nsetvl)
+            return "nsetvl";
+        if (const auto *operation = find_vcu_operation(command.vcu_opcode))
+            return operation->name;
+        return "vcu_unknown";
+    }
 
-    switch (opcode) {
-      case Opcode::Nsetvl: return "nsetvl";
+    if (command.opcode == Opcode::Sync)
+        return command.sync_opcode == SyncOpcode::Set ? "sync_set" : "sync_wait";
+
+    if (command.opcode == Opcode::GmFileIo) {
+        return command.gm_file_io_opcode == GmFileIoOpcode::LoadDataFromGm
+                ? "LoadDataFromGm"
+                : "WriteDataToGm";
+    }
+
+    switch (command.opcode) {
       case Opcode::Mte4: return "mte4";
       case Opcode::Mte2: return "mte2";
-      case Opcode::SyncSet: return "sync_set";
-      case Opcode::SyncWait: return "sync_wait";
-      case Opcode::WriteDataToGm: return "WriteDataToGm";
-      case Opcode::LoadDataFromGm: return "LoadDataFromGm";
-      default: return "unknown";
+      case Opcode::Vcu: return "vcu_unknown";
+      case Opcode::Sync: return "sync_unknown";
+      case Opcode::GmFileIo: return "gm_file_io_unknown";
     }
+    return "unknown";
+}
+
+unsigned
+subopcode_value(const NpuCommand &command)
+{
+    switch (command.opcode) {
+      case Opcode::Vcu: return static_cast<unsigned>(command.vcu_opcode);
+      case Opcode::Sync: return static_cast<unsigned>(command.sync_opcode);
+      case Opcode::GmFileIo: return static_cast<unsigned>(command.gm_file_io_opcode);
+      case Opcode::Mte4:
+      case Opcode::Mte2:
+        return 0;
+    }
+    return 0;
 }
 
 } // anonymous namespace
@@ -45,24 +71,22 @@ NpuTop::dispatch_ingress()
 bool
 NpuTop::dispatch_one(const NpuCommand &command)
 {
-    Engine engine = Engine::Control;
+    if (command.opcode == Opcode::Vcu &&
+        command.vcu_opcode == VcuOpcode::Nsetvl) {
+        auto &context = vcu_context_for(command.hart_id);
+        context.eew_bytes = decode_eew_bytes(command.rs2_value);
+        context.nvl = std::min<uint64_t>(command.rs1_value, config.max_vl);
+        trace_dispatch();
+        trace_command(command);
+        return true;
+    }
+
     const VcuContext context = vcu_context_for(command.hart_id);
     const auto vcu_payload = make_vcu_payload(command, context);
-    if (vcu_payload.has_value()) {
-        engine = Engine::Vcu;
-    } else {
-        switch (command.opcode) {
-          case Opcode::Mte4: engine = Engine::Mte4; break;
-          case Opcode::Mte2: engine = Engine::Mte2; break;
-          case Opcode::SyncSet:
-          case Opcode::SyncWait: engine = sync_route_engine(command); break;
-          case Opcode::WriteDataToGm:
-          case Opcode::LoadDataFromGm: engine = Engine::GmFileIo; break;
-          case Opcode::Nsetvl: break;
-          default:
-            throw std::logic_error("opcode has no scheduler descriptor");
-        }
-    }
+    const Engine engine = route_engine(command);
+
+    if (command.opcode == Opcode::Vcu && !vcu_payload.has_value())
+        throw std::logic_error("VCU opcode has no operation descriptor");
 
     if (!engine_has_space(engine))
         return false;
@@ -70,14 +94,6 @@ NpuTop::dispatch_one(const NpuCommand &command)
     ScheduledCommand scheduled{scheduler.next_sequence++, command, context, vcu_payload};
     scheduler.command_records.emplace(scheduled.sequence, CommandRecord{engine, false});
 
-    if (command.opcode == Opcode::Nsetvl) {
-        auto &context = vcu_context_for(command.hart_id);
-        context.eew_bytes = decode_eew_bytes(command.rs2_value);
-        context.nvl = std::min<uint64_t>(command.rs1_value, config.max_vl);
-        trace_dispatch();
-        complete(scheduled, Engine::Control);
-        return true;
-    }
     if (enqueue_scheduled(engine, std::move(scheduled))) {
         trace_dispatch();
         return true;
@@ -105,10 +121,21 @@ NpuTop::enqueue_scheduled(Engine engine, ScheduledCommand &&scheduled)
         gm_file_io.queue.push_back(std::move(scheduled));
         gm_file_io.event.notify(sc_core::SC_ZERO_TIME);
         return true;
-      case Engine::Control:
-        return false;
     }
     return false;
+}
+
+Engine
+NpuTop::route_engine(const NpuCommand &command) const
+{
+    switch (command.opcode) {
+      case Opcode::Mte4: return Engine::Mte4;
+      case Opcode::Mte2: return Engine::Mte2;
+      case Opcode::Vcu: return Engine::Vcu;
+      case Opcode::Sync: return sync_route_engine(command);
+      case Opcode::GmFileIo: return Engine::GmFileIo;
+    }
+    throw std::logic_error("opcode has no scheduler descriptor");
 }
 
 void
@@ -116,8 +143,9 @@ NpuTop::trace_command(const NpuCommand &command) const
 {
     std::cout << "CPU[" << static_cast<unsigned>(command.hart_id)
               << "]NPU[" << static_cast<unsigned>(config.npu_id)
-              << "] : op=" << opcode_name(command.opcode)
+              << "] : op=" << opcode_name(command)
               << " opcode=" << static_cast<unsigned>(command.opcode)
+              << " subopcode=" << subopcode_value(command)
               << " mask=0x" << std::hex << static_cast<unsigned>(command.npu_mask)
               << " raw=0x" << command.raw_instruction
               << " pc=0x" << command.pc
@@ -142,7 +170,6 @@ NpuTop::engine_has_space(Engine engine) const
       case Engine::Mte2: return mte2.queue.size() < config.mte2_queue_depth;
       case Engine::Vcu: return vcu.queue.size() < config.vcu_queue_depth;
       case Engine::GmFileIo: return gm_file_io.queue.size() < config.gm_file_io_queue_depth;
-      case Engine::Control: return true;
     }
     return false;
 }
@@ -150,7 +177,7 @@ NpuTop::engine_has_space(Engine engine) const
 Engine
 NpuTop::sync_route_engine(const NpuCommand &command) const
 {
-    const SyncEndpoint endpoint = command.opcode == Opcode::SyncSet
+    const SyncEndpoint endpoint = command.sync_opcode == SyncOpcode::Set
                                       ? command.sync_src
                                       : command.sync_dst;
     switch (endpoint) {
@@ -159,7 +186,7 @@ NpuTop::sync_route_engine(const NpuCommand &command) const
       case SyncEndpoint::Vcu: return Engine::Vcu;
       case SyncEndpoint::GmFileIo: return Engine::GmFileIo;
     }
-    return Engine::Control;
+    throw std::logic_error("sync endpoint has no scheduler engine");
 }
 
 uint64_t
@@ -187,8 +214,6 @@ NpuTop::sync_complete_for_command(const NpuCommand &command) const
 bool
 NpuTop::scope_includes(SyncScope scope, Engine engine) const
 {
-    if (engine == Engine::Control)
-        return false;
     switch (scope) {
       case SyncScope::All: return true;
       case SyncScope::MteAll: return engine == Engine::Mte4 || engine == Engine::Mte2;

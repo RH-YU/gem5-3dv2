@@ -93,15 +93,15 @@ NpuTop::gm_file_io_thread()
             gm_file_io.queue.pop_front();
             gm_file_io.busy = true;
             trace_engine_start(Engine::GmFileIo, command.command.raw_instruction);
-            if (command.command.opcode == Opcode::SyncSet ||
-                command.command.opcode == Opcode::SyncWait) {
+            if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
             } else {
                 wait(transfer_delay(command.command.file_byte_count,
                                     config.gm_file_io_bytes_per_ns,
                                     config.gm_file_io_setup_delay));
                 try {
-                    if (command.command.opcode == Opcode::LoadDataFromGm) {
+                    if (command.command.gm_file_io_opcode ==
+                        GmFileIoOpcode::LoadDataFromGm) {
                         LoadDataFromGm(command);
                     } else {
                         WriteDataToGm(command);

@@ -20,7 +20,7 @@ using VcuHandler = void (*)(VcuExecutionContext &context, const VcuPayload &payl
 
 struct VcuOperationDescriptor
 {
-    Opcode opcode;
+    VcuOpcode opcode;
     const char *name;
     VcuWorkUnit work_unit;
     double NpuConfig::*work_rate;
@@ -66,7 +66,7 @@ struct VcuExecutionContext
                                             const char *role) const;
 };
 
-const VcuOperationDescriptor *find_vcu_operation(Opcode opcode);
+const VcuOperationDescriptor *find_vcu_operation(VcuOpcode opcode);
 std::optional<VcuPayload> make_vcu_payload(const NpuCommand &command,
                                            const VcuContext &context);
 uint64_t vcu_payload_byte_count(const NpuConfig &config, const VcuPayload &payload);

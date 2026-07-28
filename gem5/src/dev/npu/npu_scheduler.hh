@@ -25,7 +25,7 @@ struct ScheduledCommand
 
 struct CommandRecord
 {
-    Engine engine = Engine::Control;
+    Engine engine = Engine::Vcu;
     bool complete = false;
     bool faulted = false;
 };

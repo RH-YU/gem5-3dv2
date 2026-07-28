@@ -23,13 +23,23 @@ sudo apt install -y libpng-dev libhdf5-dev lld
 mkdir -p riscv_bin
 arch=$(uname -m)
 case "$arch" in
-    x86_64) pkg=linux-x64 ;;
-    aarch64|arm64) pkg=linux-arm64 ;;
+    x86_64)
+        archive="riscv64-elf-ubuntu-22.04-gcc.tar.xz"
+        curl -L -o "/tmp/$archive" \
+            "https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2026.07.15/$archive"
+        ;;
+    aarch64|arm64)
+        archive="xpack-riscv-none-elf-gcc-15.2.0-1-linux-arm64.tar.gz"
+        curl -L -o "/tmp/$archive" \
+            "https://sourceforge.net/projects/riscv-none-elf-gcc-xpack/files/v15.2.0-1/$archive/download"
+        ;;
+    armv7l|armv6l)
+        archive="xpack-riscv-none-elf-gcc-15.2.0-1-linux-arm.tar.gz"
+        curl -L -o "/tmp/$archive" \
+            "https://sourceforge.net/projects/riscv-none-elf-gcc-xpack/files/v15.2.0-1/$archive/download"
+        ;;
     *) echo "unsupported host arch: $arch" >&2; exit 1 ;;
 esac
-archive="xpack-riscv-none-elf-gcc-15.2.0-1-${pkg}.tar.gz"
-curl -L -o "/tmp/$archive" \
-    "https://sourceforge.net/projects/riscv-none-elf-gcc-xpack/files/v15.2.0-1/$archive/download"
 tar -xf "/tmp/$archive" -C riscv_bin
 find riscv_bin -mindepth 2 -maxdepth 2 -type d -name bin -print
 find riscv_bin -path '*/bin/*-g++' -type f -perm -111 -print -quit

@@ -9,20 +9,31 @@ namespace npu_mvp
 {
 
 enum class Opcode : uint8_t {
-    Nsetvl = 0,
     Mte4 = 1,
     Mte2 = 2,
-    Vload = 3,
-    Vstore = 4,
-    Vadd = 5,
-    SyncSet = 6,
-    SyncWait = 7,
-    WriteDataToGm = 8,
-    LoadDataFromGm = 9,
+    Vcu = 3,
+    Sync = 4,
+    GmFileIo = 5,
+};
+
+enum class VcuOpcode : uint8_t {
+    Nsetvl = 3,
+    Load = 0,
+    Store = 1,
+    Add = 2,
+};
+
+enum class SyncOpcode : uint8_t {
+    Set = 1,
+    Wait = 2,
+};
+
+enum class GmFileIoOpcode : uint8_t {
+    WriteDataToGm = 0,
+    LoadDataFromGm = 1,
 };
 
 enum class Engine : uint8_t {
-    Control,
     Mte4,
     Mte2,
     Vcu,
@@ -59,7 +70,10 @@ enum class DispatchStatus : uint8_t {
 
 struct NpuCommand
 {
-    Opcode opcode = Opcode::Nsetvl;
+    Opcode opcode = Opcode::Vcu;
+    VcuOpcode vcu_opcode = VcuOpcode::Nsetvl;
+    SyncOpcode sync_opcode = SyncOpcode::Set;
+    GmFileIoOpcode gm_file_io_opcode = GmFileIoOpcode::WriteDataToGm;
     uint64_t pc = 0;
     uint32_t raw_instruction = 0;
     uint64_t rd_value = 0;

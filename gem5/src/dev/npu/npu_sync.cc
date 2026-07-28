@@ -7,7 +7,7 @@ void
 NpuTop::execute_sync(const ScheduledCommand &command)
 {
     trace_sync_start(command.command);
-    if (command.command.opcode == Opcode::SyncSet) {
+    if (command.command.sync_opcode == SyncOpcode::Set) {
         signal_sync_token(command.command);
     } else {
         wait_for_sync_token(command.command);

@@ -10,6 +10,12 @@
 !/gem5/**
 !/npu-tests/
 !/npu-tests/**
+!/npu-simulator-design/
+!/npu-simulator-design/**
+
+# Keep implementation design docs, but not one-off execution plans.
+npu-simulator-design/exec-plans/
+npu-simulator-design/exec-plans/**
 
 # Do not track nested repository metadata.
 gem5/.git/

@@ -14,12 +14,19 @@ xaiHartId(ExecContext *xc)
 npu_mvp::NpuCommand
 buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
                 npu_mvp::Opcode opcode, uint64_t rd_value,
-                uint64_t rs1_value, uint64_t rs2_value)
+                uint64_t rs1_value, uint64_t rs2_value,
+                npu_mvp::VcuOpcode vcu_opcode = npu_mvp::VcuOpcode::Load,
+                npu_mvp::SyncOpcode sync_opcode = npu_mvp::SyncOpcode::Set,
+                npu_mvp::GmFileIoOpcode gm_file_io_opcode =
+                        npu_mvp::GmFileIoOpcode::WriteDataToGm)
 {
     const auto &pc_state = xc->pcState().as<RiscvISA::PCState>();
 
     npu_mvp::NpuCommand command;
     command.opcode = opcode;
+    command.vcu_opcode = vcu_opcode;
+    command.sync_opcode = sync_opcode;
+    command.gm_file_io_opcode = gm_file_io_opcode;
     command.pc = pc_state.pc();
     command.raw_instruction = mach_inst.instBits;
     command.rd_value = rd_value;
@@ -31,19 +38,18 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
     command.hart_id = xaiHartId(xc);
     command.npu_mask = static_cast<uint8_t>(
             xc->readMiscReg(MISCREG_REG_NPU) & 0xF);
-    if (opcode == npu_mvp::Opcode::SyncSet ||
-        opcode == npu_mvp::Opcode::SyncWait) {
+    if (opcode == npu_mvp::Opcode::Sync) {
         command.sync_src =
                 static_cast<npu_mvp::SyncEndpoint>(command.rd & 0x1F);
         command.sync_dst =
                 static_cast<npu_mvp::SyncEndpoint>(command.rs1 & 0x1F);
         command.sync_id = command.rs2 & 0x1F;
     }
-    if (opcode == npu_mvp::Opcode::WriteDataToGm ||
-        opcode == npu_mvp::Opcode::LoadDataFromGm) {
+    if (opcode == npu_mvp::Opcode::GmFileIo) {
         const uint64_t file_index = rs2_value;
         const std::string file_prefix =
-                opcode == npu_mvp::Opcode::WriteDataToGm
+                gm_file_io_opcode ==
+                npu_mvp::GmFileIoOpcode::WriteDataToGm
                 ? "GMInputFile_"
                 : "GMOutputFile_";
         command.sim_file_path =
@@ -87,9 +93,8 @@ sendXaiCommandAtomic(ExecContext *xc, const npu_mvp::NpuCommand &command)
     delete sender_state;
     delete packet;
 
-    panic_if(dispatch_status == npu_mvp::DispatchStatus::Backpressured,
-             "Xai NPU command backpressured; atomic XAI dispatch cannot "
-             "stall/retry the CPU yet.");
+    if (dispatch_status == npu_mvp::DispatchStatus::Backpressured)
+        return std::make_shared<ReExec>();
     if (dispatch_status == npu_mvp::DispatchStatus::Invalid) {
         return std::make_shared<IllegalInstFault>(
                 "Xai NPU command dispatch failed",
@@ -101,10 +106,15 @@ sendXaiCommandAtomic(ExecContext *xc, const npu_mvp::NpuCommand &command)
 Fault
 dispatchXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
                    npu_mvp::Opcode opcode, uint64_t rd_value,
-                   uint64_t rs1_value, uint64_t rs2_value)
+                   uint64_t rs1_value, uint64_t rs2_value,
+                   npu_mvp::VcuOpcode vcu_opcode = npu_mvp::VcuOpcode::Load,
+                   npu_mvp::SyncOpcode sync_opcode = npu_mvp::SyncOpcode::Set,
+                   npu_mvp::GmFileIoOpcode gm_file_io_opcode =
+                           npu_mvp::GmFileIoOpcode::WriteDataToGm)
 {
     const auto command = buildXaiCommand(
-            xc, mach_inst, opcode, rd_value, rs1_value, rs2_value);
+            xc, mach_inst, opcode, rd_value, rs1_value, rs2_value,
+            vcu_opcode, sync_opcode, gm_file_io_opcode);
     return sendXaiCommandAtomic(xc, command);
 }
 
@@ -183,17 +193,62 @@ def format XaiOp(opcode, *flags) {{
     exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
 }};
 
-def format XaiSyncOp(opcode, *flags) {{
+def format XaiVcuOp(vcu_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t rd_value = xc->getRegOperand(this, 0);
+    const uint64_t rs1_value = xc->getRegOperand(this, 1);
+    const uint64_t rs2_value = xc->getRegOperand(this, 2);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::Vcu, rd_value, rs1_value,
+            rs2_value, %(vcu_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'vcu_opcode': 'npu_mvp::VcuOpcode::' + vcu_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(3)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiSyncOp(sync_opcode, *flags) {{
     xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
     code = '''
     Fault fault = dispatchXaiCommand(
-            xc, machInst, %(opcode)s, 0, 0, 0);
+            xc, machInst, npu_mvp::Opcode::Sync, 0, 0, 0,
+            npu_mvp::VcuOpcode::Load, %(sync_opcode)s);
     if (fault != NoFault)
         return fault;
-    ''' % { 'opcode': 'npu_mvp::Opcode::' + opcode }
+    ''' % { 'sync_opcode': 'npu_mvp::SyncOpcode::' + sync_opcode }
     iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
     header_output = XaiDeclare.subst(iop)
     decoder_output = XaiNoRegConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiGmFileIoOp(gm_file_io_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t rd_value = xc->getRegOperand(this, 0);
+    const uint64_t rs1_value = xc->getRegOperand(this, 1);
+    const uint64_t rs2_value = xc->getRegOperand(this, 2);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::GmFileIo, rd_value, rs1_value,
+            rs2_value, npu_mvp::VcuOpcode::Load, npu_mvp::SyncOpcode::Set,
+            %(gm_file_io_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % {
+        'gm_file_io_opcode':
+                'npu_mvp::GmFileIoOpcode::' + gm_file_io_opcode
+    }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(3)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiConstructor.subst(iop)
     decode_block = BasicDecode.subst(iop)
     exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
 }};

@@ -66,7 +66,13 @@ NpuTop::can_accept(const NpuCommand &command) const
     if ((command.npu_mask & (1U << config.npu_id)) == 0)
         return true;
 
-    return scheduler.ingress_queue.size() < config.scheduler_queue_depth;
+    if (scheduler.ingress_queue.size() >= config.scheduler_queue_depth)
+        return false;
+
+    if (command.opcode == Opcode::Vcu && command.vcu_opcode == VcuOpcode::Nsetvl)
+        return true;
+
+    return engine_has_space(route_engine(command));
 }
 
 SubmitResult
@@ -190,7 +196,6 @@ NpuTop::trace_engine_start(Engine engine, uint32_t raw_instruction)
         trace_signals.gm_file_io_busy = true;
         trace_signals.gm_file_io_instruction = raw_instruction;
         break;
-      case Engine::Control: break;
     }
 }
 
@@ -218,7 +223,6 @@ NpuTop::trace_engine_done(Engine engine)
         trace_signals.gm_file_io_busy = false;
         trace_signals.gm_file_io_instruction = 0;
         break;
-      case Engine::Control: break;
     }
 }
 

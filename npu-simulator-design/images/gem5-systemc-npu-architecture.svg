@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">gem5 + SystemC NPU architecture</title>
+  <desc id="desc">Current implementation architecture for XAI command dispatch, NPU scheduling, queues, engines, storage, synchronization, and CPU backpressure.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#344054"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2563eb"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 26px Arial, sans-serif; fill: #111827; }
+      .section-title { font: 700 18px Arial, sans-serif; fill: #111827; }
+      .label { font: 600 15px Arial, sans-serif; fill: #111827; }
+      .small { font: 13px Arial, sans-serif; fill: #334155; }
+      .tiny { font: 12px Arial, sans-serif; fill: #475569; }
+      .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; rx: 8; }
+      .gem5 { fill: #eff6ff; stroke: #2563eb; }
+      .systemc { fill: #f0fdf4; stroke: #16a34a; }
+      .queue { fill: #fff7ed; stroke: #ea580c; }
+      .engine { fill: #fdf2f8; stroke: #db2777; }
+      .storage { fill: #f8fafc; stroke: #64748b; }
+      .sync { fill: #fefce8; stroke: #ca8a04; }
+      .line { stroke: #344054; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .blue-line { stroke: #2563eb; stroke-width: 2.5; fill: none; marker-end: url(#arrow-blue); }
+      .soft-line { stroke: #64748b; stroke-width: 1.7; fill: none; marker-end: url(#arrow); stroke-dasharray: 6 5; }
+      .domain { fill: none; stroke: #cbd5e1; stroke-width: 2; rx: 14; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="900"/>
+  <text class="title" x="40" y="48">gem5 + SystemC NPU 当前实现框架</text>
+  <text class="small" x="40" y="76">XAI custom instruction dispatch, bounded NPU queues, ReExec backpressure, VCU context, sync token, GM/UB storage</text>
+
+  <rect class="domain" x="40" y="110" width="410" height="650"/>
+  <text class="section-title" x="64" y="142">gem5 CPU / ISA / Device</text>
+
+  <rect class="box gem5" x="80" y="180" width="310" height="74"/>
+  <text class="label" x="102" y="210">Bare-metal RV64 CPU</text>
+  <text class="small" x="102" y="234">executes ELF, no CPU vector state required</text>
+
+  <rect class="box gem5" x="80" y="292" width="310" height="92"/>
+  <text class="label" x="102" y="322">XAI decoder</text>
+  <text class="small" x="102" y="346">decoder.isa + formats/xai.isa</text>
+  <text class="small" x="102" y="368">builds NpuCommand from GPR snapshots</text>
+
+  <rect class="box gem5" x="80" y="422" width="310" height="100"/>
+  <text class="label" x="102" y="452">sendXaiCommandAtomic()</text>
+  <text class="small" x="102" y="476">Packet + NpuCommandSenderState</text>
+  <text class="small" x="102" y="498">Backpressured -> ReExec</text>
+
+  <rect class="box gem5" x="80" y="562" width="310" height="92"/>
+  <text class="label" x="102" y="592">NpuDevice / NpuCluster</text>
+  <text class="small" x="102" y="616">command aperture on gem5 bus</text>
+  <text class="small" x="102" y="638">checks all masked NPUs before submit</text>
+
+  <rect class="domain" x="500" y="110" width="840" height="650"/>
+  <text class="section-title" x="524" y="142">SystemC NPU</text>
+
+  <rect class="box systemc" x="540" y="178" width="280" height="82"/>
+  <text class="label" x="562" y="208">NpuTop::submit()</text>
+  <text class="small" x="562" y="232">bounded scheduler ingress FIFO</text>
+  <text class="small" x="562" y="250">dispatch_event wakes scheduler</text>
+
+  <rect class="box queue" x="550" y="300" width="260" height="86"/>
+  <text class="label" x="576" y="330">Scheduler Core</text>
+  <text class="small" x="576" y="354">route by coarse Opcode</text>
+  <text class="small" x="576" y="374">freeze VCU context per command</text>
+
+  <rect class="box sync" x="548" y="425" width="264" height="94"/>
+  <text class="label" x="576" y="455">VCU Context + Sync</text>
+  <text class="small" x="576" y="479">nsetvl updates nvl/eew_bytes</text>
+  <text class="small" x="576" y="501">sync token: src, dst, id</text>
+
+  <rect class="box queue" x="870" y="176" width="170" height="66"/>
+  <text class="label" x="902" y="205">MTE4 FIFO</text>
+  <text class="tiny" x="902" y="225">GM -> UB</text>
+
+  <rect class="box queue" x="870" y="266" width="170" height="66"/>
+  <text class="label" x="902" y="295">MTE2 FIFO</text>
+  <text class="tiny" x="902" y="315">UB -> GM</text>
+
+  <rect class="box queue" x="870" y="356" width="170" height="66"/>
+  <text class="label" x="902" y="385">VCU FIFO</text>
+  <text class="tiny" x="902" y="405">vload/vstore/vadd</text>
+
+  <rect class="box queue" x="870" y="446" width="170" height="66"/>
+  <text class="label" x="892" y="475">GM File I/O FIFO</text>
+  <text class="tiny" x="902" y="495">test import/export</text>
+
+  <rect class="box engine" x="1088" y="166" width="190" height="86"/>
+  <text class="label" x="1136" y="196">MTE4 Thread</text>
+  <text class="small" x="1118" y="220">copy GM bytes to UB</text>
+
+  <rect class="box engine" x="1088" y="256" width="190" height="86"/>
+  <text class="label" x="1136" y="286">MTE2 Thread</text>
+  <text class="small" x="1118" y="310">copy UB bytes to GM</text>
+
+  <rect class="box engine" x="1088" y="346" width="190" height="86"/>
+  <text class="label" x="1138" y="376">VCU Thread</text>
+  <text class="small" x="1114" y="400">operation descriptor table</text>
+
+  <rect class="box engine" x="1088" y="436" width="190" height="86"/>
+  <text class="label" x="1120" y="466">GM File I/O Thread</text>
+  <text class="small" x="1114" y="490">host files for tests only</text>
+
+  <rect class="box storage" x="895" y="590" width="170" height="82"/>
+  <text class="label" x="944" y="620">GM</text>
+  <text class="small" x="920" y="644">SparseMemory</text>
+  <text class="tiny" x="920" y="662">NPU private global memory</text>
+
+  <rect class="box storage" x="1110" y="590" width="150" height="82"/>
+  <text class="label" x="1162" y="620">UB</text>
+  <text class="small" x="1138" y="644">FlatMemory</text>
+  <text class="tiny" x="1132" y="662">local buffer</text>
+
+  <path class="blue-line" d="M235 254 L235 292"/>
+  <path class="blue-line" d="M235 384 L235 422"/>
+  <path class="blue-line" d="M235 522 L235 562"/>
+  <path class="blue-line" d="M390 608 C450 608, 470 220, 540 220"/>
+
+  <path class="line" d="M680 260 L680 300"/>
+  <path class="line" d="M810 343 L870 209"/>
+  <path class="line" d="M810 343 L870 299"/>
+  <path class="line" d="M810 343 L870 389"/>
+  <path class="line" d="M810 343 L870 479"/>
+
+  <path class="line" d="M1040 209 L1088 209"/>
+  <path class="line" d="M1040 299 L1088 299"/>
+  <path class="line" d="M1040 389 L1088 389"/>
+  <path class="line" d="M1040 479 L1088 479"/>
+
+  <path class="soft-line" d="M1183 252 L995 590"/>
+  <path class="soft-line" d="M1183 252 L1185 590"/>
+  <path class="soft-line" d="M1183 342 L995 590"/>
+  <path class="soft-line" d="M1183 342 L1185 590"/>
+  <path class="soft-line" d="M1183 432 L1185 590"/>
+  <path class="soft-line" d="M1183 522 L995 590"/>
+
+  <path class="soft-line" d="M680 425 L870 209"/>
+  <path class="soft-line" d="M680 425 L870 299"/>
+  <path class="soft-line" d="M680 425 L870 389"/>
+  <path class="soft-line" d="M680 425 L870 479"/>
+
+  <rect class="box" x="80" y="690" width="310" height="42"/>
+  <text class="small" x="102" y="716">CPU stalls only when submit returns Backpressured</text>
+
+  <rect class="box" x="540" y="690" width="330" height="42"/>
+  <text class="small" x="562" y="716">nsetvl is VCU config: no engine FIFO occupancy</text>
+
+  <rect class="box" x="910" y="705" width="330" height="42"/>
+  <text class="small" x="932" y="731">sync waits block NPU engine FIFO, not CPU execution</text>
+</svg>

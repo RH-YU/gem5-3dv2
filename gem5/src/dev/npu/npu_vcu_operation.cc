@@ -118,18 +118,18 @@ execute_vcu_add(VcuExecutionContext &context, const VcuPayload &payload)
 }
 
 constexpr std::array<VcuOperationDescriptor, 3> vcu_operations = {{
-        {Opcode::Vload, "vload", VcuWorkUnit::Bytes, &NpuConfig::vcu_bytes_per_ns,
+        {VcuOpcode::Load, "vload", VcuWorkUnit::Bytes, &NpuConfig::vcu_bytes_per_ns,
          execute_vcu_load},
-        {Opcode::Vstore, "vstore", VcuWorkUnit::Bytes, &NpuConfig::vcu_bytes_per_ns,
+        {VcuOpcode::Store, "vstore", VcuWorkUnit::Bytes, &NpuConfig::vcu_bytes_per_ns,
          execute_vcu_store},
-        {Opcode::Vadd, "vadd", VcuWorkUnit::Elements, &NpuConfig::vadd_elements_per_ns,
+        {VcuOpcode::Add, "vadd", VcuWorkUnit::Elements, &NpuConfig::vadd_elements_per_ns,
          execute_vcu_add},
 }};
 
 } // anonymous namespace
 
 const VcuOperationDescriptor *
-find_vcu_operation(Opcode opcode)
+find_vcu_operation(VcuOpcode opcode)
 {
     for (const auto &descriptor : vcu_operations) {
         if (descriptor.opcode == opcode)
@@ -141,7 +141,10 @@ find_vcu_operation(Opcode opcode)
 std::optional<VcuPayload>
 make_vcu_payload(const NpuCommand &command, const VcuContext &context)
 {
-    const auto *descriptor = find_vcu_operation(command.opcode);
+    if (command.opcode != Opcode::Vcu)
+        return std::nullopt;
+
+    const auto *descriptor = find_vcu_operation(command.vcu_opcode);
     if (descriptor == nullptr)
         return std::nullopt;
 

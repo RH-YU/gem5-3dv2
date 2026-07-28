@@ -2555,23 +2555,23 @@ decode QUADRANT {
                 }
             }
             0x1: decode FUNCT7 {
-                format XaiOp {
-                    0x00: vload(Vload);
-                    0x01: vstore(Vstore);
-                    0x02: xai_vadd_vv(Vadd);
+                format XaiVcuOp {
+                    0x00: vload(Load);
+                    0x01: vstore(Store);
+                    0x02: xai_vadd_vv(Add);
                 }
             }
             0x2: decode FUNCT7 {
-                format XaiOp {
+                format XaiVcuOp {
                     0x00: nsetvl(Nsetvl);
                 }
                 format XaiSyncOp {
-                    0x01: sync_set(SyncSet);
-                    0x02: sync_wait(SyncWait);
+                    0x01: sync_set(Set);
+                    0x02: sync_wait(Wait);
                 }
             }
             0x4: decode FUNCT7 {
-                format XaiOp {
+                format XaiGmFileIoOp {
                     0x00: write_data_to_gm(WriteDataToGm);
                     0x01: load_data_from_gm(LoadDataFromGm);
                 }

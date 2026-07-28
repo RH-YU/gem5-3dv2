@@ -56,6 +56,7 @@ class NpuTop : public sc_core::sc_module
     void b_transport(tlm::tlm_generic_payload &transaction, sc_core::sc_time &delay);
     bool dispatch_one(const NpuCommand &command);
     bool enqueue_scheduled(Engine engine, ScheduledCommand &&command);
+    Engine route_engine(const NpuCommand &command) const;
     void trace_command(const NpuCommand &command) const;
     void trace_ingress();
     void trace_dispatch();

@@ -16,8 +16,7 @@ NpuTop::mte4_thread()
             mte4.queue.pop_front();
             mte4.busy = true;
             trace_engine_start(Engine::Mte4, command.command.raw_instruction);
-            if (command.command.opcode == Opcode::SyncSet ||
-                command.command.opcode == Opcode::SyncWait) {
+            if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
             } else {
                 wait(transfer_delay(command.command.rd_value,
