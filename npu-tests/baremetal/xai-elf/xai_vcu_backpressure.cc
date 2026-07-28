@@ -138,6 +138,8 @@ main()
     }
     xai_vstore_v1(ub_result);
     XAI_SYNC_SET(XAI_SYNC_MTE4, XAI_SYNC_VCU, 1);
+    XAI_SYNC_SET(XAI_SYNC_VCU, XAI_SYNC_MTE2, 2);
+    XAI_SYNC_WAIT(XAI_SYNC_VCU, XAI_SYNC_MTE2, 2);
 
     xai_mte2(vector_bytes, ub_result, gm_result);
     XAI_SYNC_SET(XAI_SYNC_MTE2, XAI_SYNC_GM_FILE_IO, 3);

@@ -193,7 +193,6 @@ NpuCluster::b_transport(tlm::tlm_generic_payload &transaction,
     if (extension->sender_state != nullptr)
         extension->sender_state->status = DispatchStatus::Accepted;
 
-    delay += dispatch_delay;
     transaction.set_response_status(tlm::TLM_OK_RESPONSE);
 }
 

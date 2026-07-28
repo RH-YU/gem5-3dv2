@@ -666,6 +666,18 @@ check_vcu_backpressure_log()
 {
     check_xai_log_common "VCU backpressure" "$vcu_backpressure_log"
 
+    if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_set .* sync_src=2 sync_dst=1 sync_id=2" "$vcu_backpressure_log"; then
+        cat "$vcu_backpressure_log"
+        echo "FAIL: VCU-to-MTE2 sync_set did not complete." >&2
+        exit 1
+    fi
+
+    if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_wait .* sync_src=2 sync_dst=1 sync_id=2" "$vcu_backpressure_log"; then
+        cat "$vcu_backpressure_log"
+        echo "FAIL: VCU-to-MTE2 sync_wait did not complete." >&2
+        exit 1
+    fi
+
     check_xai_vcd "VCU backpressure" "$vcu_backpressure_vcd_file" 1 "$vcu_backpressure_log"
     check_vcd_signal_minimum "VCU backpressure" "$vcu_backpressure_vcd_file" \
         "vcu_queue_size" 8 "$vcu_backpressure_log"

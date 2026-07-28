@@ -51,7 +51,7 @@ find riscv_bin -path '*/bin/*-g++' -type f -perm -111 -print -quit
 
 ```bash
 cd gem5/ext/dramsim3
-test -d DRAMsim3 || git clone https://github.com/umd-memsys/DRAMSim3.git DRAMsim3
+test -d DRAMsim3 || git clone https://github.com/umd-memsys/DRAMsim3.git DRAMsim3
 cd DRAMsim3
 mkdir -p build
 cd build

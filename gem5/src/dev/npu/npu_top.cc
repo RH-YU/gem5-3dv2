@@ -110,7 +110,6 @@ NpuTop::b_transport(tlm::tlm_generic_payload &transaction, sc_core::sc_time &del
     if (result == SubmitResult::Accepted) {
         if (extension->sender_state != nullptr)
             extension->sender_state->status = DispatchStatus::Accepted;
-        delay += config.scheduler_dispatch_delay;
         transaction.set_response_status(tlm::TLM_OK_RESPONSE);
         return;
     }
