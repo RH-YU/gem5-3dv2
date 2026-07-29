@@ -24,7 +24,7 @@ NpuTop::mte4_thread()
                                     config.mte4_bytes_per_ns,
                                     config.mte4_setup_delay));
                 try {
-                    execute_mte(command, Region::Gm, Region::Ub);
+                    execute_mte4(command);
                 } catch (const std::exception &error) {
                     fault(command, error.what());
                 }

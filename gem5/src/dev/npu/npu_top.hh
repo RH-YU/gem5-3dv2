@@ -1,7 +1,10 @@
 #pragma once
 
 #include "dev/npu/npu_command.hh"
+#include "dev/npu/npu_cube.hh"
+#include "dev/npu/npu_fixpipe.hh"
 #include "dev/npu/npu_gm_file_io.hh"
+#include "dev/npu/npu_mte1.hh"
 #include "dev/npu/npu_mte.hh"
 #include "dev/npu/npu_scheduler.hh"
 #include "dev/npu/npu_storage.hh"
@@ -46,7 +49,7 @@ class NpuTop : public sc_core::sc_module
     std::vector<uint8_t> read_gm_for_test(uint64_t address, uint64_t byte_count) const;
 
   private:
-    enum class Region : uint8_t { Gm, Ub };
+    enum class Region : uint8_t { Gm, Ub, L1, L0A, L0B, L0C };
 
     struct DecodedAddress {
         Region region;
@@ -86,8 +89,12 @@ class NpuTop : public sc_core::sc_module
 
     // MTE4/MTE2 engines.
     void mte4_thread();
+    void mte1_thread();
     void mte2_thread();
     void execute_mte(const ScheduledCommand &command, Region source, Region destination);
+    void execute_mte4(const ScheduledCommand &command);
+    void execute_mte1(const ScheduledCommand &command);
+    void execute_mte2(const ScheduledCommand &command);
 
     // VCU engine.
     void vcu_thread();
@@ -97,6 +104,14 @@ class NpuTop : public sc_core::sc_module
                                             uint64_t byte_count);
     static void write_vcu_ub(void *owner, uint64_t address,
                              const std::vector<uint8_t> &data);
+
+    // Cube engine.
+    void cube_thread();
+    void execute_cube(const ScheduledCommand &command);
+
+    // Fixpipe engine.
+    void fixpipe_thread();
+    void execute_fixpipe(const ScheduledCommand &command);
 
     // Simulator-only GM file I/O engine.
     void gm_file_io_thread();
@@ -110,10 +125,17 @@ class NpuTop : public sc_core::sc_module
     NpuConfig config;
     SparseMemory gm;
     FlatMemory ub;
+    FlatMemory l1;
+    FlatMemory l0a;
+    FlatMemory l0b;
+    FlatMemory l0c;
     SchedulerState scheduler;
     MteEngineState mte4;
+    Mte1State mte1;
     MteEngineState mte2;
     VcuState vcu;
+    CubeState cube;
+    FixpipeState fixpipe;
     GmFileIoState gm_file_io;
     SyncState sync;
     sc_core::sc_trace_file *trace_file = nullptr;

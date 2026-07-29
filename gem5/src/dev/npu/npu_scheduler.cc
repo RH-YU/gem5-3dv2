@@ -17,6 +17,28 @@ namespace
 const char *
 opcode_name(const NpuCommand &command)
 {
+    if (command.opcode == Opcode::Mte4) {
+        return command.mte4_opcode == Mte4Opcode::GmToL1
+                ? "mte4_gm_to_l1"
+                : "mte4_gm_to_ub";
+    }
+
+    if (command.opcode == Opcode::Mte2) {
+        return command.mte2_opcode == Mte2Opcode::UbToL1
+                ? "mte2_ub_to_l1"
+                : "mte2_ub_to_gm";
+    }
+
+    if (command.opcode == Opcode::Mte1) {
+        switch (command.mte1_opcode) {
+          case Mte1Opcode::L1ToGm: return "mte1_l1_to_gm";
+          case Mte1Opcode::L1ToUb: return "mte1_l1_to_ub";
+          case Mte1Opcode::L1ToL0A: return "mte1_l1_to_l0a";
+          case Mte1Opcode::L1ToL0B: return "mte1_l1_to_l0b";
+        }
+        return "mte1_unknown";
+    }
+
     if (command.opcode == Opcode::Vcu) {
         if (command.vcu_opcode == VcuOpcode::Nsetvl)
             return "nsetvl";
@@ -34,10 +56,22 @@ opcode_name(const NpuCommand &command)
                 : "WriteDataToGm";
     }
 
+    if (command.opcode == Opcode::Cube)
+        return "cube_mma_fp32";
+
+    if (command.opcode == Opcode::Fixpipe) {
+        return command.fixpipe_opcode == FixpipeOpcode::L0CToUb
+                ? "fixpipe_l0c_to_ub"
+                : "fixpipe_l0c_to_l1";
+    }
+
     switch (command.opcode) {
-      case Opcode::Mte4: return "mte4";
-      case Opcode::Mte2: return "mte2";
+      case Opcode::Mte4: return "mte4_unknown";
+      case Opcode::Mte2: return "mte2_unknown";
+      case Opcode::Mte1: return "mte1_unknown";
       case Opcode::Vcu: return "vcu_unknown";
+      case Opcode::Cube: return "cube_unknown";
+      case Opcode::Fixpipe: return "fixpipe_unknown";
       case Opcode::Sync: return "sync_unknown";
       case Opcode::GmFileIo: return "gm_file_io_unknown";
     }
@@ -48,12 +82,14 @@ unsigned
 subopcode_value(const NpuCommand &command)
 {
     switch (command.opcode) {
+      case Opcode::Mte4: return static_cast<unsigned>(command.mte4_opcode);
+      case Opcode::Mte2: return static_cast<unsigned>(command.mte2_opcode);
+      case Opcode::Mte1: return static_cast<unsigned>(command.mte1_opcode);
       case Opcode::Vcu: return static_cast<unsigned>(command.vcu_opcode);
+      case Opcode::Cube: return static_cast<unsigned>(command.cube_opcode);
+      case Opcode::Fixpipe: return static_cast<unsigned>(command.fixpipe_opcode);
       case Opcode::Sync: return static_cast<unsigned>(command.sync_opcode);
       case Opcode::GmFileIo: return static_cast<unsigned>(command.gm_file_io_opcode);
-      case Opcode::Mte4:
-      case Opcode::Mte2:
-        return 0;
     }
     return 0;
 }
@@ -120,6 +156,11 @@ NpuTop::enqueue_scheduled(Engine engine, ScheduledCommand &&scheduled)
         trace_queue_sizes();
         mte4.event.notify(sc_core::SC_ZERO_TIME);
         return true;
+      case Engine::Mte1:
+        mte1.queue.push_back(std::move(scheduled));
+        trace_queue_sizes();
+        mte1.event.notify(sc_core::SC_ZERO_TIME);
+        return true;
       case Engine::Mte2:
         mte2.queue.push_back(std::move(scheduled));
         trace_queue_sizes();
@@ -129,6 +170,16 @@ NpuTop::enqueue_scheduled(Engine engine, ScheduledCommand &&scheduled)
         vcu.queue.push_back(std::move(scheduled));
         trace_queue_sizes();
         vcu.event.notify(sc_core::SC_ZERO_TIME);
+        return true;
+      case Engine::Cube:
+        cube.queue.push_back(std::move(scheduled));
+        trace_queue_sizes();
+        cube.event.notify(sc_core::SC_ZERO_TIME);
+        return true;
+      case Engine::Fixpipe:
+        fixpipe.queue.push_back(std::move(scheduled));
+        trace_queue_sizes();
+        fixpipe.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::GmFileIo:
         gm_file_io.queue.push_back(std::move(scheduled));
@@ -144,8 +195,11 @@ NpuTop::route_engine(const NpuCommand &command) const
 {
     switch (command.opcode) {
       case Opcode::Mte4: return Engine::Mte4;
+      case Opcode::Mte1: return Engine::Mte1;
       case Opcode::Mte2: return Engine::Mte2;
       case Opcode::Vcu: return Engine::Vcu;
+      case Opcode::Cube: return Engine::Cube;
+      case Opcode::Fixpipe: return Engine::Fixpipe;
       case Opcode::Sync: return sync_route_engine(command);
       case Opcode::GmFileIo: return Engine::GmFileIo;
     }
@@ -184,8 +238,12 @@ NpuTop::engine_has_space(Engine engine) const
 {
     switch (engine) {
       case Engine::Mte4: return mte4.queue.size() < config.mte4_queue_depth;
+      case Engine::Mte1: return mte1.queue.size() < config.mte1_queue_depth;
       case Engine::Mte2: return mte2.queue.size() < config.mte2_queue_depth;
       case Engine::Vcu: return vcu.queue.size() < config.vcu_queue_depth;
+      case Engine::Cube: return cube.queue.size() < config.cube_queue_depth;
+      case Engine::Fixpipe:
+        return fixpipe.queue.size() < config.fixpipe_queue_depth;
       case Engine::GmFileIo: return gm_file_io.queue.size() < config.gm_file_io_queue_depth;
     }
     return false;
@@ -202,6 +260,9 @@ NpuTop::sync_route_engine(const NpuCommand &command) const
       case SyncEndpoint::Mte2: return Engine::Mte2;
       case SyncEndpoint::Vcu: return Engine::Vcu;
       case SyncEndpoint::GmFileIo: return Engine::GmFileIo;
+      case SyncEndpoint::Mte1: return Engine::Mte1;
+      case SyncEndpoint::Cube: return Engine::Cube;
+      case SyncEndpoint::Fixpipe: return Engine::Fixpipe;
       case SyncEndpoint::Cpu:
         throw std::logic_error("CPU sync endpoint is handled before scheduler routing");
     }
@@ -227,7 +288,8 @@ NpuTop::scope_complete(SyncScope scope, uint64_t watermark) const
 bool
 NpuTop::sync_complete_for_command(const NpuCommand &command) const
 {
-    return scope_complete(static_cast<SyncScope>(command.rs1_value & 0x7), scope_watermark());
+    return scope_complete(static_cast<SyncScope>(command.rs1_value & 0xF),
+                          scope_watermark());
 }
 
 bool
@@ -235,11 +297,16 @@ NpuTop::scope_includes(SyncScope scope, Engine engine) const
 {
     switch (scope) {
       case SyncScope::All: return true;
-      case SyncScope::MteAll: return engine == Engine::Mte4 || engine == Engine::Mte2;
+      case SyncScope::MteAll:
+        return engine == Engine::Mte4 || engine == Engine::Mte1 ||
+               engine == Engine::Mte2;
       case SyncScope::Vcu: return engine == Engine::Vcu;
       case SyncScope::Mte4: return engine == Engine::Mte4;
       case SyncScope::Mte2: return engine == Engine::Mte2;
       case SyncScope::GmFileIo: return engine == Engine::GmFileIo;
+      case SyncScope::Mte1: return engine == Engine::Mte1;
+      case SyncScope::Cube: return engine == Engine::Cube;
+      case SyncScope::Fixpipe: return engine == Engine::Fixpipe;
     }
     return false;
 }

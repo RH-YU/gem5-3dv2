@@ -15,7 +15,17 @@ npu_mvp::NpuCommand
 buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
                 npu_mvp::Opcode opcode, uint64_t rd_value,
                 uint64_t rs1_value, uint64_t rs2_value,
+                npu_mvp::Mte4Opcode mte4_opcode =
+                        npu_mvp::Mte4Opcode::GmToUb,
+                npu_mvp::Mte2Opcode mte2_opcode =
+                        npu_mvp::Mte2Opcode::UbToGm,
+                npu_mvp::Mte1Opcode mte1_opcode =
+                        npu_mvp::Mte1Opcode::L1ToGm,
                 npu_mvp::VcuOpcode vcu_opcode = npu_mvp::VcuOpcode::Load,
+                npu_mvp::CubeOpcode cube_opcode =
+                        npu_mvp::CubeOpcode::MmaFp32_8x16x16,
+                npu_mvp::FixpipeOpcode fixpipe_opcode =
+                        npu_mvp::FixpipeOpcode::L0CToL1,
                 npu_mvp::SyncOpcode sync_opcode = npu_mvp::SyncOpcode::Set,
                 npu_mvp::GmFileIoOpcode gm_file_io_opcode =
                         npu_mvp::GmFileIoOpcode::WriteDataToGm)
@@ -24,7 +34,12 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
 
     npu_mvp::NpuCommand command;
     command.opcode = opcode;
+    command.mte4_opcode = mte4_opcode;
+    command.mte2_opcode = mte2_opcode;
+    command.mte1_opcode = mte1_opcode;
     command.vcu_opcode = vcu_opcode;
+    command.cube_opcode = cube_opcode;
+    command.fixpipe_opcode = fixpipe_opcode;
     command.sync_opcode = sync_opcode;
     command.gm_file_io_opcode = gm_file_io_opcode;
     command.pc = pc_state.pc();
@@ -83,14 +98,25 @@ Fault
 dispatchXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
                    npu_mvp::Opcode opcode, uint64_t rd_value,
                    uint64_t rs1_value, uint64_t rs2_value,
+                   npu_mvp::Mte4Opcode mte4_opcode =
+                           npu_mvp::Mte4Opcode::GmToUb,
+                   npu_mvp::Mte2Opcode mte2_opcode =
+                           npu_mvp::Mte2Opcode::UbToGm,
+                   npu_mvp::Mte1Opcode mte1_opcode =
+                           npu_mvp::Mte1Opcode::L1ToGm,
                    npu_mvp::VcuOpcode vcu_opcode = npu_mvp::VcuOpcode::Load,
+                   npu_mvp::CubeOpcode cube_opcode =
+                           npu_mvp::CubeOpcode::MmaFp32_8x16x16,
+                   npu_mvp::FixpipeOpcode fixpipe_opcode =
+                           npu_mvp::FixpipeOpcode::L0CToL1,
                    npu_mvp::SyncOpcode sync_opcode = npu_mvp::SyncOpcode::Set,
                    npu_mvp::GmFileIoOpcode gm_file_io_opcode =
                            npu_mvp::GmFileIoOpcode::WriteDataToGm)
 {
     const auto command = buildXaiCommand(
             xc, mach_inst, opcode, rd_value, rs1_value, rs2_value,
-            vcu_opcode, sync_opcode, gm_file_io_opcode);
+            mte4_opcode, mte2_opcode, mte1_opcode, vcu_opcode, cube_opcode,
+            fixpipe_opcode, sync_opcode, gm_file_io_opcode);
     return sendXaiCommandDirect(xc, command);
 }
 
@@ -169,6 +195,67 @@ def format XaiOp(opcode, *flags) {{
     exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
 }};
 
+def format XaiMte4Op(mte4_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t rd_value = xc->getRegOperand(this, 0);
+    const uint64_t rs1_value = xc->getRegOperand(this, 1);
+    const uint64_t rs2_value = xc->getRegOperand(this, 2);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::Mte4, rd_value, rs1_value,
+            rs2_value, %(mte4_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'mte4_opcode': 'npu_mvp::Mte4Opcode::' + mte4_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(3)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiMte2Op(mte2_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t rd_value = xc->getRegOperand(this, 0);
+    const uint64_t rs1_value = xc->getRegOperand(this, 1);
+    const uint64_t rs2_value = xc->getRegOperand(this, 2);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::Mte2, rd_value, rs1_value,
+            rs2_value, npu_mvp::Mte4Opcode::GmToUb, %(mte2_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'mte2_opcode': 'npu_mvp::Mte2Opcode::' + mte2_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(3)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiMte1Op(mte1_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t rd_value = xc->getRegOperand(this, 0);
+    const uint64_t rs1_value = xc->getRegOperand(this, 1);
+    const uint64_t rs2_value = xc->getRegOperand(this, 2);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::Mte1, rd_value, rs1_value,
+            rs2_value, npu_mvp::Mte4Opcode::GmToUb,
+            npu_mvp::Mte2Opcode::UbToGm, %(mte1_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'mte1_opcode': 'npu_mvp::Mte1Opcode::' + mte1_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(3)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
 def format XaiVcuOp(vcu_opcode, *flags) {{
     xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
     code = '''
@@ -177,7 +264,9 @@ def format XaiVcuOp(vcu_opcode, *flags) {{
     const uint64_t rs2_value = xc->getRegOperand(this, 2);
     Fault fault = dispatchXaiCommand(
             xc, machInst, npu_mvp::Opcode::Vcu, rd_value, rs1_value,
-            rs2_value, %(vcu_opcode)s);
+            rs2_value, npu_mvp::Mte4Opcode::GmToUb,
+            npu_mvp::Mte2Opcode::UbToGm, npu_mvp::Mte1Opcode::L1ToGm,
+            %(vcu_opcode)s);
     if (fault != NoFault)
         return fault;
     ''' % { 'vcu_opcode': 'npu_mvp::VcuOpcode::' + vcu_opcode }
@@ -194,7 +283,10 @@ def format XaiSyncOp(sync_opcode, *flags) {{
     code = '''
     Fault fault = dispatchXaiCommand(
             xc, machInst, npu_mvp::Opcode::Sync, 0, 0, 0,
-            npu_mvp::VcuOpcode::Load, %(sync_opcode)s);
+            npu_mvp::Mte4Opcode::GmToUb, npu_mvp::Mte2Opcode::UbToGm,
+            npu_mvp::Mte1Opcode::L1ToGm, npu_mvp::VcuOpcode::Load,
+            npu_mvp::CubeOpcode::MmaFp32_8x16x16,
+            npu_mvp::FixpipeOpcode::L0CToL1, %(sync_opcode)s);
     if (fault != NoFault)
         return fault;
     ''' % { 'sync_opcode': 'npu_mvp::SyncOpcode::' + sync_opcode }
@@ -213,7 +305,10 @@ def format XaiGmFileIoOp(gm_file_io_opcode, *flags) {{
     const uint64_t rs2_value = xc->getRegOperand(this, 2);
     Fault fault = dispatchXaiCommand(
             xc, machInst, npu_mvp::Opcode::GmFileIo, rd_value, rs1_value,
-            rs2_value, npu_mvp::VcuOpcode::Load, npu_mvp::SyncOpcode::Set,
+            rs2_value, npu_mvp::Mte4Opcode::GmToUb,
+            npu_mvp::Mte2Opcode::UbToGm, npu_mvp::Mte1Opcode::L1ToGm,
+            npu_mvp::VcuOpcode::Load, npu_mvp::CubeOpcode::MmaFp32_8x16x16,
+            npu_mvp::FixpipeOpcode::L0CToL1, npu_mvp::SyncOpcode::Set,
             %(gm_file_io_opcode)s);
     if (fault != NoFault)
         return fault;
@@ -221,6 +316,51 @@ def format XaiGmFileIoOp(gm_file_io_opcode, *flags) {{
         'gm_file_io_opcode':
                 'npu_mvp::GmFileIoOpcode::' + gm_file_io_opcode
     }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(3)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiCubeOp(cube_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t rd_value = xc->getRegOperand(this, 0);
+    const uint64_t rs1_value = xc->getRegOperand(this, 1);
+    const uint64_t rs2_value = xc->getRegOperand(this, 2);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::Cube, rd_value, rs1_value,
+            rs2_value, npu_mvp::Mte4Opcode::GmToUb,
+            npu_mvp::Mte2Opcode::UbToGm, npu_mvp::Mte1Opcode::L1ToGm,
+            npu_mvp::VcuOpcode::Load, %(cube_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'cube_opcode': 'npu_mvp::CubeOpcode::' + cube_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(3)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiFixpipeOp(fixpipe_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t rd_value = xc->getRegOperand(this, 0);
+    const uint64_t rs1_value = xc->getRegOperand(this, 1);
+    const uint64_t rs2_value = xc->getRegOperand(this, 2);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::Fixpipe, rd_value, rs1_value,
+            rs2_value, npu_mvp::Mte4Opcode::GmToUb,
+            npu_mvp::Mte2Opcode::UbToGm, npu_mvp::Mte1Opcode::L1ToGm,
+            npu_mvp::VcuOpcode::Load,
+            npu_mvp::CubeOpcode::MmaFp32_8x16x16, %(fixpipe_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'fixpipe_opcode': 'npu_mvp::FixpipeOpcode::' + fixpipe_opcode }
     iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
     iop.padSrcRegIdx(3)
     header_output = XaiDeclare.subst(iop)

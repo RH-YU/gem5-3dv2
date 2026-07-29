@@ -2549,9 +2549,13 @@ decode QUADRANT {
 
         0x16: decode FUNCT3 {
             0x0: decode FUNCT7 {
-                format XaiOp {
-                    0x00: mte4(Mte4);
-                    0x01: mte2(Mte2);
+                format XaiMte4Op {
+                    0x00: mte4(GmToUb);
+                    0x02: mte4_gm_to_l1(GmToL1);
+                }
+                format XaiMte2Op {
+                    0x01: mte2(UbToGm);
+                    0x03: mte2_ub_to_l1(UbToL1);
                 }
             }
             0x1: decode FUNCT7 {
@@ -2574,6 +2578,25 @@ decode QUADRANT {
                 format XaiGmFileIoOp {
                     0x00: write_data_to_gm(WriteDataToGm);
                     0x01: load_data_from_gm(LoadDataFromGm);
+                }
+            }
+            0x3: decode FUNCT7 {
+                format XaiMte1Op {
+                    0x00: mte1_l1_to_gm(L1ToGm);
+                    0x01: mte1_l1_to_ub(L1ToUb);
+                    0x02: mte1_l1_to_l0a(L1ToL0A);
+                    0x03: mte1_l1_to_l0b(L1ToL0B);
+                }
+            }
+            0x5: decode FUNCT7 {
+                format XaiFixpipeOp {
+                    0x00: fixpipe_l0c_to_l1(L0CToL1);
+                    0x01: fixpipe_l0c_to_ub(L0CToUb);
+                }
+            }
+            0x6: decode FUNCT7 {
+                format XaiCubeOp {
+                    0x00: cube_mma_fp32(MmaFp32_8x16x16);
                 }
             }
         }

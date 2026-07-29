@@ -34,28 +34,87 @@ ranges_overlap(uint64_t first_base, uint64_t first_size,
     return first_base < second_end && second_base < first_end;
 }
 
+void
+require_non_overlapping(uint64_t first_base, uint64_t first_size,
+                        uint64_t second_base, uint64_t second_size,
+                        const char *message)
+{
+    if (ranges_overlap(first_base, first_size, second_base, second_size))
+        throw std::invalid_argument(message);
+}
+
 } // anonymous namespace
 
 NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
     : sc_core::sc_module(name), config(std::move(config)),
       gm(this->config.gm_size, this->config.gm_page_size), ub(this->config.ub_size),
+      l1(this->config.l1_size), l0a(this->config.l0a_size),
+      l0b(this->config.l0b_size), l0c(this->config.l0c_size),
       vcu(this->config.vector_register_count, this->config.vector_register_bytes)
 {
     if (!range_is_valid(this->config.gm_phys_base, this->config.gm_size) ||
-        !range_is_valid(this->config.ub_phys_base, this->config.ub_size)) {
+        !range_is_valid(this->config.ub_phys_base, this->config.ub_size) ||
+        !range_is_valid(this->config.l1_phys_base, this->config.l1_size) ||
+        !range_is_valid(this->config.l0a_phys_base, this->config.l0a_size) ||
+        !range_is_valid(this->config.l0b_phys_base, this->config.l0b_size) ||
+        !range_is_valid(this->config.l0c_phys_base, this->config.l0c_size)) {
         throw std::invalid_argument("NPU physical address map overflows");
     }
-    if (ranges_overlap(this->config.gm_phys_base, this->config.gm_size,
-                       this->config.ub_phys_base, this->config.ub_size)) {
-        throw std::invalid_argument("GM and UB physical regions overlap");
-    }
+    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
+                            this->config.ub_phys_base, this->config.ub_size,
+                            "GM and UB physical regions overlap");
+    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
+                            this->config.l1_phys_base, this->config.l1_size,
+                            "GM and L1 physical regions overlap");
+    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
+                            this->config.l0a_phys_base, this->config.l0a_size,
+                            "GM and L0A physical regions overlap");
+    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
+                            this->config.l0b_phys_base, this->config.l0b_size,
+                            "GM and L0B physical regions overlap");
+    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
+                            this->config.l0c_phys_base, this->config.l0c_size,
+                            "GM and L0C physical regions overlap");
+    require_non_overlapping(this->config.ub_phys_base, this->config.ub_size,
+                            this->config.l1_phys_base, this->config.l1_size,
+                            "UB and L1 physical regions overlap");
+    require_non_overlapping(this->config.ub_phys_base, this->config.ub_size,
+                            this->config.l0a_phys_base, this->config.l0a_size,
+                            "UB and L0A physical regions overlap");
+    require_non_overlapping(this->config.ub_phys_base, this->config.ub_size,
+                            this->config.l0b_phys_base, this->config.l0b_size,
+                            "UB and L0B physical regions overlap");
+    require_non_overlapping(this->config.ub_phys_base, this->config.ub_size,
+                            this->config.l0c_phys_base, this->config.l0c_size,
+                            "UB and L0C physical regions overlap");
+    require_non_overlapping(this->config.l1_phys_base, this->config.l1_size,
+                            this->config.l0a_phys_base, this->config.l0a_size,
+                            "L1 and L0A physical regions overlap");
+    require_non_overlapping(this->config.l1_phys_base, this->config.l1_size,
+                            this->config.l0b_phys_base, this->config.l0b_size,
+                            "L1 and L0B physical regions overlap");
+    require_non_overlapping(this->config.l1_phys_base, this->config.l1_size,
+                            this->config.l0c_phys_base, this->config.l0c_size,
+                            "L1 and L0C physical regions overlap");
+    require_non_overlapping(this->config.l0a_phys_base, this->config.l0a_size,
+                            this->config.l0b_phys_base, this->config.l0b_size,
+                            "L0A and L0B physical regions overlap");
+    require_non_overlapping(this->config.l0a_phys_base, this->config.l0a_size,
+                            this->config.l0c_phys_base, this->config.l0c_size,
+                            "L0A and L0C physical regions overlap");
+    require_non_overlapping(this->config.l0b_phys_base, this->config.l0b_size,
+                            this->config.l0c_phys_base, this->config.l0c_size,
+                            "L0B and L0C physical regions overlap");
 
     SC_METHOD(dispatch_ingress);
     sensitive << scheduler.dispatch_event;
     dont_initialize();
     SC_THREAD(mte4_thread);
+    SC_THREAD(mte1_thread);
     SC_THREAD(mte2_thread);
     SC_THREAD(vcu_thread);
+    SC_THREAD(cube_thread);
+    SC_THREAD(fixpipe_thread);
     SC_THREAD(gm_file_io_thread);
 }
 
@@ -153,6 +212,10 @@ NpuTop::trace_engine_start(Engine engine, uint32_t raw_instruction)
         trace_signals.mte4_busy = true;
         trace_signals.mte4_instruction = raw_instruction;
         break;
+      case Engine::Mte1:
+        trace_signals.mte1_busy = true;
+        trace_signals.mte1_instruction = raw_instruction;
+        break;
       case Engine::Mte2:
         trace_signals.mte2_busy = true;
         trace_signals.mte2_instruction = raw_instruction;
@@ -160,6 +223,14 @@ NpuTop::trace_engine_start(Engine engine, uint32_t raw_instruction)
       case Engine::Vcu:
         trace_signals.vcu_busy = true;
         trace_signals.vcu_instruction = raw_instruction;
+        break;
+      case Engine::Cube:
+        trace_signals.cube_busy = true;
+        trace_signals.cube_instruction = raw_instruction;
+        break;
+      case Engine::Fixpipe:
+        trace_signals.fixpipe_busy = true;
+        trace_signals.fixpipe_instruction = raw_instruction;
         break;
       case Engine::GmFileIo:
         trace_signals.gm_file_io_busy = true;
@@ -180,6 +251,10 @@ NpuTop::trace_engine_done(Engine engine)
         trace_signals.mte4_busy = false;
         trace_signals.mte4_instruction = 0;
         break;
+      case Engine::Mte1:
+        trace_signals.mte1_busy = false;
+        trace_signals.mte1_instruction = 0;
+        break;
       case Engine::Mte2:
         trace_signals.mte2_busy = false;
         trace_signals.mte2_instruction = 0;
@@ -187,6 +262,14 @@ NpuTop::trace_engine_done(Engine engine)
       case Engine::Vcu:
         trace_signals.vcu_busy = false;
         trace_signals.vcu_instruction = 0;
+        break;
+      case Engine::Cube:
+        trace_signals.cube_busy = false;
+        trace_signals.cube_instruction = 0;
+        break;
+      case Engine::Fixpipe:
+        trace_signals.fixpipe_busy = false;
+        trace_signals.fixpipe_instruction = 0;
         break;
       case Engine::GmFileIo:
         trace_signals.gm_file_io_busy = false;
@@ -213,8 +296,12 @@ NpuTop::trace_queue_sizes()
     trace_signals.scheduler_queue_size =
             static_cast<uint32_t>(scheduler.ingress_queue.size());
     trace_signals.mte4_queue_size = static_cast<uint32_t>(mte4.queue.size());
+    trace_signals.mte1_queue_size = static_cast<uint32_t>(mte1.queue.size());
     trace_signals.mte2_queue_size = static_cast<uint32_t>(mte2.queue.size());
     trace_signals.vcu_queue_size = static_cast<uint32_t>(vcu.queue.size());
+    trace_signals.cube_queue_size = static_cast<uint32_t>(cube.queue.size());
+    trace_signals.fixpipe_queue_size =
+            static_cast<uint32_t>(fixpipe.queue.size());
     trace_signals.gm_file_io_queue_size =
             static_cast<uint32_t>(gm_file_io.queue.size());
 }
@@ -236,8 +323,34 @@ NpuTop::read_gm_for_test(uint64_t address, uint64_t byte_count) const
 NpuTop::DecodedAddress
 NpuTop::decode(uint64_t address, uint64_t byte_count, Region expected) const
 {
-    const uint64_t base = expected == Region::Gm ? config.gm_phys_base : config.ub_phys_base;
-    const uint64_t size = expected == Region::Gm ? config.gm_size : config.ub_size;
+    uint64_t base = 0;
+    uint64_t size = 0;
+    switch (expected) {
+      case Region::Gm:
+        base = config.gm_phys_base;
+        size = config.gm_size;
+        break;
+      case Region::Ub:
+        base = config.ub_phys_base;
+        size = config.ub_size;
+        break;
+      case Region::L1:
+        base = config.l1_phys_base;
+        size = config.l1_size;
+        break;
+      case Region::L0A:
+        base = config.l0a_phys_base;
+        size = config.l0a_size;
+        break;
+      case Region::L0B:
+        base = config.l0b_phys_base;
+        size = config.l0b_size;
+        break;
+      case Region::L0C:
+        base = config.l0c_phys_base;
+        size = config.l0c_size;
+        break;
+    }
     if (!range_fits(address, byte_count, base, size))
         throw std::out_of_range("NPU physical address does not fit expected region");
     return {expected, address - base};
@@ -247,20 +360,52 @@ std::vector<uint8_t>
 NpuTop::read(Region region, uint64_t local_address, uint64_t byte_count) const
 {
     std::vector<uint8_t> data(byte_count, 0);
-    if (region == Region::Gm)
+    switch (region) {
+      case Region::Gm:
         gm.read(local_address, data);
-    else
+        break;
+      case Region::Ub:
         ub.read(local_address, data);
+        break;
+      case Region::L1:
+        l1.read(local_address, data);
+        break;
+      case Region::L0A:
+        l0a.read(local_address, data);
+        break;
+      case Region::L0B:
+        l0b.read(local_address, data);
+        break;
+      case Region::L0C:
+        l0c.read(local_address, data);
+        break;
+    }
     return data;
 }
 
 void
 NpuTop::write(Region region, uint64_t local_address, const std::vector<uint8_t> &data)
 {
-    if (region == Region::Gm)
+    switch (region) {
+      case Region::Gm:
         gm.write(local_address, data);
-    else
+        break;
+      case Region::Ub:
         ub.write(local_address, data);
+        break;
+      case Region::L1:
+        l1.write(local_address, data);
+        break;
+      case Region::L0A:
+        l0a.write(local_address, data);
+        break;
+      case Region::L0B:
+        l0b.write(local_address, data);
+        break;
+      case Region::L0C:
+        l0c.write(local_address, data);
+        break;
+    }
 }
 
 } // namespace npu_mvp

@@ -90,26 +90,41 @@ register_npu_trace_signals(sc_core::sc_trace_file *trace_file,
     sc_core::sc_trace(trace_file, signals.fault_event, scope + ".fault_event");
     sc_core::sc_trace(trace_file, signals.sync_event, scope + ".sync_event");
     sc_core::sc_trace(trace_file, signals.mte4_busy, scope + ".mte4_busy");
+    sc_core::sc_trace(trace_file, signals.mte1_busy, scope + ".mte1_busy");
     sc_core::sc_trace(trace_file, signals.mte2_busy, scope + ".mte2_busy");
     sc_core::sc_trace(trace_file, signals.vcu_busy, scope + ".vcu_busy");
+    sc_core::sc_trace(trace_file, signals.cube_busy, scope + ".cube_busy");
+    sc_core::sc_trace(trace_file, signals.fixpipe_busy, scope + ".fixpipe_busy");
     sc_core::sc_trace(trace_file, signals.gm_file_io_busy,
                       scope + ".gm_file_io_busy");
     sc_core::sc_trace(trace_file, signals.scheduler_queue_size,
                       scope + ".scheduler_queue_size");
     sc_core::sc_trace(trace_file, signals.mte4_queue_size,
                       scope + ".mte4_queue_size");
+    sc_core::sc_trace(trace_file, signals.mte1_queue_size,
+                      scope + ".mte1_queue_size");
     sc_core::sc_trace(trace_file, signals.mte2_queue_size,
                       scope + ".mte2_queue_size");
     sc_core::sc_trace(trace_file, signals.vcu_queue_size,
                       scope + ".vcu_queue_size");
+    sc_core::sc_trace(trace_file, signals.cube_queue_size,
+                      scope + ".cube_queue_size");
+    sc_core::sc_trace(trace_file, signals.fixpipe_queue_size,
+                      scope + ".fixpipe_queue_size");
     sc_core::sc_trace(trace_file, signals.gm_file_io_queue_size,
                       scope + ".gm_file_io_queue_size");
     sc_core::sc_trace(trace_file, signals.mte4_instruction,
                       scope + ".mte4_instruction");
+    sc_core::sc_trace(trace_file, signals.mte1_instruction,
+                      scope + ".mte1_instruction");
     sc_core::sc_trace(trace_file, signals.mte2_instruction,
                       scope + ".mte2_instruction");
     sc_core::sc_trace(trace_file, signals.vcu_instruction,
                       scope + ".vcu_instruction");
+    sc_core::sc_trace(trace_file, signals.cube_instruction,
+                      scope + ".cube_instruction");
+    sc_core::sc_trace(trace_file, signals.fixpipe_instruction,
+                      scope + ".fixpipe_instruction");
     sc_core::sc_trace(trace_file, signals.gm_file_io_instruction,
                       scope + ".gm_file_io_instruction");
 }

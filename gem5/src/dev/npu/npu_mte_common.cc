@@ -18,4 +18,43 @@ NpuTop::execute_mte(const ScheduledCommand &command, Region source, Region desti
     write(destination_address.region, destination_address.local_address, data);
 }
 
+void
+NpuTop::execute_mte4(const ScheduledCommand &command)
+{
+    const Region destination = command.command.mte4_opcode == Mte4Opcode::GmToL1
+            ? Region::L1
+            : Region::Ub;
+    execute_mte(command, Region::Gm, destination);
+}
+
+void
+NpuTop::execute_mte1(const ScheduledCommand &command)
+{
+    Region destination = Region::Gm;
+    switch (command.command.mte1_opcode) {
+      case Mte1Opcode::L1ToGm:
+        destination = Region::Gm;
+        break;
+      case Mte1Opcode::L1ToUb:
+        destination = Region::Ub;
+        break;
+      case Mte1Opcode::L1ToL0A:
+        destination = Region::L0A;
+        break;
+      case Mte1Opcode::L1ToL0B:
+        destination = Region::L0B;
+        break;
+    }
+    execute_mte(command, Region::L1, destination);
+}
+
+void
+NpuTop::execute_mte2(const ScheduledCommand &command)
+{
+    const Region destination = command.command.mte2_opcode == Mte2Opcode::UbToL1
+            ? Region::L1
+            : Region::Gm;
+    execute_mte(command, Region::Ub, destination);
+}
+
 } // namespace npu_mvp

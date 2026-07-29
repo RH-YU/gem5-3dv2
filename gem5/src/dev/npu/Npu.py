@@ -15,6 +15,14 @@ class NpuCluster(SystemC_ScModule):
     gm_page_size = Param.UInt64(4096, "Sparse GM page size")
     ub_phys_base = Param.UInt64(0x0000000100000000, "NPU UB physical base")
     ub_size = Param.UInt64(512 * 1024, "NPU UB byte size")
+    l1_phys_base = Param.UInt64(0x0000000100080000, "NPU L1 physical base")
+    l1_size = Param.UInt64(512 * 1024, "NPU private L1 byte size")
+    l0a_phys_base = Param.UInt64(0x0000000100100000, "NPU L0A physical base")
+    l0a_size = Param.UInt64(64 * 1024, "NPU private L0A byte size")
+    l0b_phys_base = Param.UInt64(0x0000000100110000, "NPU L0B physical base")
+    l0b_size = Param.UInt64(64 * 1024, "NPU private L0B byte size")
+    l0c_phys_base = Param.UInt64(0x0000000100120000, "NPU L0C physical base")
+    l0c_size = Param.UInt64(64 * 1024, "NPU private L0C byte size")
     mte_max_transfer_bytes = Param.UInt64(
         1024 * 1024, "Maximum bytes in one MTE command"
     )
@@ -25,8 +33,11 @@ class NpuCluster(SystemC_ScModule):
 
     scheduler_queue_depth = Param.UInt32(32, "Scheduler ingress queue depth")
     mte4_queue_depth = Param.UInt32(32, "MTE4 queue depth")
+    mte1_queue_depth = Param.UInt32(32, "MTE1 queue depth")
     mte2_queue_depth = Param.UInt32(32, "MTE2 queue depth")
     vcu_queue_depth = Param.UInt32(32, "VCU queue depth")
+    cube_queue_depth = Param.UInt32(32, "Cube queue depth")
+    fixpipe_queue_depth = Param.UInt32(32, "Fixpipe queue depth")
     gm_file_io_queue_depth = Param.UInt32(32, "Simulator GM file I/O queue depth")
 
     enable_sim_gm_file_io = Param.Bool(False, "Enable simulator-only GM file I/O commands")
@@ -34,11 +45,17 @@ class NpuCluster(SystemC_ScModule):
 
     scheduler_dispatch_delay = Param.Latency("1ns", "Scheduler dispatch delay")
     mte4_setup_delay = Param.Latency("4ns", "MTE4 setup delay")
+    mte1_setup_delay = Param.Latency("4ns", "MTE1 setup delay")
     mte2_setup_delay = Param.Latency("4ns", "MTE2 setup delay")
+    cube_setup_delay = Param.Latency("1ns", "Cube setup delay")
+    fixpipe_setup_delay = Param.Latency("1ns", "Fixpipe setup delay")
     gm_file_io_setup_delay = Param.Latency("1ns", "GM file I/O setup delay")
 
     mte4_bytes_per_ns = Param.Float(16.0, "MTE4 transfer bandwidth")
+    mte1_bytes_per_ns = Param.Float(16.0, "MTE1 transfer bandwidth")
     mte2_bytes_per_ns = Param.Float(16.0, "MTE2 transfer bandwidth")
+    cube_fma_per_ns = Param.Float(128.0, "Cube FP32 FMA throughput")
+    fixpipe_bytes_per_ns = Param.Float(16.0, "Fixpipe transfer bandwidth")
     gm_file_io_bytes_per_ns = Param.Float(16.0, "GM file I/O bandwidth")
     vcu_bytes_per_ns = Param.Float(16.0, "VCU load/store bandwidth")
     vadd_elements_per_ns = Param.Float(16.0, "VCU vector-add throughput")

@@ -4,53 +4,11 @@ set -euo pipefail
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 gem5_root="$project_root/gem5"
 build_dir="$project_root/npu-tests/build/xai-elf"
-smoke_src="$project_root/npu-tests/baremetal/xai-elf/xai_smoke.cc"
-multinpu_src="$project_root/npu-tests/baremetal/xai-elf/xai_multinpu_smoke.cc"
-vcu_backpressure_src="$project_root/npu-tests/baremetal/xai-elf/xai_vcu_backpressure.cc"
 start_src="$project_root/npu-tests/baremetal/xai-elf/start.S"
 linker_script="$project_root/npu-tests/baremetal/xai-elf/linker.ld"
-data_generator="$project_root/npu-tests/reference/xai-elf/generate_smoke_data.py"
-multinpu_data_generator="$project_root/npu-tests/reference/xai-elf/generate_multinpu_smoke_data.py"
-vcu_backpressure_data_generator="$project_root/npu-tests/reference/xai-elf/generate_vcu_backpressure_data.py"
-smoke_elf="$build_dir/xai_smoke.elf"
-multinpu_elf="$build_dir/xai_multinpu_smoke.elf"
-vcu_backpressure_elf="$build_dir/xai_vcu_backpressure.elf"
-smoke_asm_file="$build_dir/xai_smoke.asm"
-multinpu_asm_file="$build_dir/xai_multinpu_smoke.asm"
-vcu_backpressure_asm_file="$build_dir/xai_vcu_backpressure.asm"
+xai_vcd_checker="$project_root/npu-tests/reference/xai-elf/check_xai_vcd.py"
 gem5_bin="$gem5_root/build/RISCV/gem5.opt"
 gem5_config="$gem5_root/configs/example/npu/baremetal_xiangshan.py"
-gem5_output_dir="$build_dir/gem5_output"
-gem5_log="$gem5_output_dir/xai_smoke.log"
-multinpu_log="$gem5_output_dir/xai_multinpu_smoke.log"
-vcu_backpressure_log="$gem5_output_dir/xai_vcu_backpressure.log"
-vcu_backpressure_cache_debug_log="$gem5_output_dir/xai_vcu_backpressure_cache_debug.log"
-m5out_dir="$gem5_output_dir/m5out"
-multinpu_m5out_dir="$gem5_output_dir/multinpu_m5out"
-vcu_backpressure_m5out_dir="$gem5_output_dir/vcu_backpressure_m5out"
-vcu_backpressure_cache_debug_m5out_dir="$gem5_output_dir/vcu_backpressure_cache_debug_m5out"
-smoke_vcd_base="xai_smoke_npu_trace"
-smoke_vcd_file="$m5out_dir/${smoke_vcd_base}.vcd"
-multinpu_vcd_base="xai_multinpu_npu_trace"
-multinpu_vcd_file="$multinpu_m5out_dir/${multinpu_vcd_base}.vcd"
-vcu_backpressure_vcd_base="xai_vcu_backpressure_npu_trace"
-vcu_backpressure_vcd_file="$vcu_backpressure_m5out_dir/${vcu_backpressure_vcd_base}.vcd"
-vcu_backpressure_cache_debug_vcd_file="$vcu_backpressure_cache_debug_m5out_dir/${vcu_backpressure_vcd_base}.vcd"
-dramsim3_output_dir="$gem5_output_dir/dramsim3"
-gm_file_io_root="$build_dir/gm_file_io"
-multinpu_gm_file_io_root="$build_dir/gm_file_io_multinpu"
-vcu_backpressure_gm_file_io_root="$build_dir/gm_file_io_vcu_backpressure"
-multinpu_expected_root="$build_dir/multinpu_expected"
-file_hart_id=0
-file_index=0
-vcu_backpressure_file_index=1
-vcu_backpressure_recursive_add_count=16
-write_data_fixture="$gm_file_io_root/GMInputFile_${file_hart_id}_${file_index}.bin"
-expected_result_bin="$build_dir/xai_expected.bin"
-actual_result_bin="$gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
-vcu_backpressure_write_data_fixture="$vcu_backpressure_gm_file_io_root/GMInputFile_${file_hart_id}_${vcu_backpressure_file_index}.bin"
-vcu_backpressure_expected_result_bin="$build_dir/xai_vcu_backpressure_expected.bin"
-vcu_backpressure_actual_result_bin="$vcu_backpressure_gm_file_io_root/GMOutputFile_${file_hart_id}_${vcu_backpressure_file_index}.bin"
 riscv_toolchain_root="${RISCV_TOOLCHAIN_ROOT:-$project_root/riscv_bin}"
 riscv_toolchain_bin="${RISCV_TOOLCHAIN_BIN:-}"
 riscv_toolchain_prefix="${RISCV_TOOLCHAIN_PREFIX:-}"
@@ -183,7 +141,7 @@ emit_asm()
 
 usage()
 {
-    echo "Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure|run-vcu-backpressure-cache-debug]" >&2
+    echo "Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure|run-vcu-backpressure-cache-debug|run-cube-smoke]" >&2
 }
 
 check_host()
@@ -247,6 +205,7 @@ compile_xai_elf()
         -Wl,-T,"$linker_script"
     )
 
+    mkdir -p "$(dirname "$elf_file")" "$(dirname "$asm_file")"
     echo "+ $compiler ${compile_flags[*]} -o $elf_file $start_src $source_file"
     "$compiler" "${compile_flags[@]}" -o "$elf_file" "$start_src" "$source_file"
     test -s "$elf_file"
@@ -287,6 +246,7 @@ run_xai_sim()
     local vcd_base=$6
     local npu_count=${7:-}
     local debug_file=${8:-}
+    local dramsim3_output_dir="$build_dir/gem5_output/dramsim3"
 
     local gem5_args=("$gem5_bin")
     if [[ -n "$debug_file" ]]; then
@@ -317,6 +277,8 @@ run_xai_sim()
     fi
     sim_args+=(--mem-size 2GB)
 
+    mkdir -p "$(dirname "$log_file")" "$m5out" "$gm_root" \
+        "$dramsim3_output_dir"
     echo "+ timeout ${timeout_seconds}s ${gem5_args[*]} ${sim_args[*]}"
     set +e
     timeout "${timeout_seconds}s" "${gem5_args[@]}" "${sim_args[@]}" \
@@ -363,69 +325,8 @@ check_xai_vcd()
         echo "FAIL: $label NPU VCD trace was not generated: $vcd_file" >&2
         exit 1
     fi
-    if ! python3 - "$vcd_file" "$npu_count" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-npu_count = int(sys.argv[2])
-data = path.read_bytes()
-if any(byte > 0x7f for byte in data):
-    raise SystemExit(1)
-text = data.decode("ascii")
-required = [
-    "$timescale",
-    "$scope module cluster $end",
-    "$scope module cpu $end",
-    "npu_cmd_event",
-    "npu_backpressure_event",
-    "npu_clock",
-    "commit_event",
-    "commit_valid",
-    "commit_pc",
-    "commit_insn",
-]
-for needle in required:
-    if needle not in text:
-        raise SystemExit(1)
-for signal in ["commit_pc", "commit_insn"]:
-    pattern = rf"\$var\s+wire\s+32\s+\S+\s+{signal}\s+\[31:0\]\s+\$end"
-    if not re.search(pattern, text):
-        raise SystemExit(1)
-commit_insn = re.search(
-    r"\$var\s+wire\s+32\s+(\S+)\s+commit_insn\s+\[31:0\]\s+\$end", text)
-if not commit_insn or not re.search(
-        rf"\bb[01]*1[01]*\s+{re.escape(commit_insn.group(1))}\b", text):
-    raise SystemExit(1)
-for npu_id in range(npu_count):
-    scope = f"$scope module npu{npu_id} $end"
-    if scope not in text:
-        raise SystemExit(1)
-    for signal in [
-        "ingress_event",
-        "dispatch_event",
-        "engine_start_event",
-        "engine_done_event",
-        "fault_event",
-        "sync_event",
-        "mte4_busy",
-        "mte2_busy",
-        "vcu_busy",
-        "gm_file_io_busy",
-        "scheduler_queue_size",
-        "mte4_queue_size",
-        "mte2_queue_size",
-        "vcu_queue_size",
-        "gm_file_io_queue_size",
-        "mte4_instruction",
-        "mte2_instruction",
-        "vcu_instruction",
-        "gm_file_io_instruction",
-    ]:
-        if signal not in text:
-            raise SystemExit(1)
-PY
+    if ! python3 "$xai_vcd_checker" structure \
+        --vcd-file "$vcd_file" --npu-count "$npu_count"
     then
         echo "FAIL: $label VCD trace is malformed or missing expected scopes/signals." >&2
         exit 1
@@ -439,24 +340,8 @@ check_vcd_signal_asserted()
     local signal_name=$3
     local log_file=$4
 
-    if ! python3 - "$vcd_file" "$signal_name" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-signal_name = sys.argv[2]
-text = path.read_text(encoding="ascii")
-match = re.search(
-    rf"\$var\s+\w+\s+\d+\s+(\S+)\s+{re.escape(signal_name)}\s+\$end",
-    text,
-)
-if not match:
-    raise SystemExit(1)
-identifier = re.escape(match.group(1))
-if not re.search(rf"(?m)^1{identifier}$", text):
-    raise SystemExit(1)
-PY
+    if ! python3 "$xai_vcd_checker" signal-asserted \
+        --vcd-file "$vcd_file" --signal-name "$signal_name"
     then
         cat "$log_file"
         echo "FAIL: $label VCD signal $signal_name was not asserted." >&2
@@ -472,29 +357,9 @@ check_vcd_signal_minimum()
     local minimum_value=$4
     local log_file=$5
 
-    if ! python3 - "$vcd_file" "$signal_name" "$minimum_value" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-signal_name = sys.argv[2]
-minimum_value = int(sys.argv[3], 0)
-text = path.read_text(encoding="ascii")
-match = re.search(
-    rf"\$var\s+\w+\s+32\s+(\S+)\s+{re.escape(signal_name)}\s+\[31:0\]\s+\$end",
-    text,
-)
-if not match:
-    raise SystemExit(1)
-identifier = re.escape(match.group(1))
-values = [
-    int(bits, 2)
-    for bits in re.findall(rf"(?m)^b([01]+)\s+{identifier}$", text)
-]
-if not values or max(values) < minimum_value:
-    raise SystemExit(1)
-PY
+    if ! python3 "$xai_vcd_checker" signal-minimum \
+        --vcd-file "$vcd_file" --signal-name "$signal_name" \
+        --minimum-value "$minimum_value"
     then
         cat "$log_file"
         echo "FAIL: $label VCD signal $signal_name never reached at least $minimum_value." >&2
@@ -504,10 +369,18 @@ PY
 
 generate_smoke_data()
 {
-    echo "+ python3 $data_generator --gm-file-io-root $gm_file_io_root --hart-id $file_hart_id --index $file_index --expected-bin $expected_result_bin"
+    local data_generator=$1
+    local gm_file_io_root=$2
+    local hart_id=$3
+    local file_index=$4
+    local expected_result_bin=$5
+    local actual_result_bin=$6
+    local write_data_fixture="$gm_file_io_root/GMInputFile_${hart_id}_${file_index}.bin"
+
+    echo "+ python3 $data_generator --gm-file-io-root $gm_file_io_root --hart-id $hart_id --index $file_index --expected-bin $expected_result_bin"
     python3 "$data_generator" \
         --gm-file-io-root "$gm_file_io_root" \
-        --hart-id "$file_hart_id" \
+        --hart-id "$hart_id" \
         --index "$file_index" \
         --expected-bin "$expected_result_bin"
     test -s "$write_data_fixture"
@@ -519,20 +392,31 @@ generate_smoke_data()
 
 run_smoke_sim()
 {
-    rm -f "$smoke_vcd_file"
-    run_xai_sim 30 "$gem5_log" "$m5out_dir" "$smoke_elf" \
-        "$gm_file_io_root" "$smoke_vcd_base"
+    local log_file=$1
+    local m5out_dir=$2
+    local elf_file=$3
+    local gm_file_io_root=$4
+    local vcd_base=$5
+    local vcd_file="$m5out_dir/${vcd_base}.vcd"
+
+    rm -f "$vcd_file"
+    run_xai_sim 30 "$log_file" "$m5out_dir" "$elf_file" \
+        "$gm_file_io_root" "$vcd_base"
 }
 
 check_smoke_log()
 {
+    local log_file=$1
+    local vcd_file=$2
+    local expected_result_bin=$3
+    local actual_result_bin=$4
     local op
-    check_xai_log_common "smoke" "$gem5_log"
+    check_xai_log_common "smoke" "$log_file"
 
     for op in mte4 mte2 vload vstore vadd nsetvl sync_set sync_wait \
         WriteDataToGm LoadDataFromGm; do
-        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=$op " "$gem5_log"; then
-            cat "$gem5_log"
+        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=$op " "$log_file"; then
+            cat "$log_file"
             echo "FAIL: Xai operation $op did not reach NPU target." >&2
             exit 1
         fi
@@ -544,61 +428,85 @@ check_smoke_log()
     local sync_id
     for boundary in "3 0 0" "0 2 1" "2 1 2" "1 3 3"; do
         read -r src dst sync_id <<<"$boundary"
-        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_set .*opcode=4 subopcode=1 .*sync_src=$src sync_dst=$dst sync_id=$sync_id" "$gem5_log"; then
-            cat "$gem5_log"
+        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_set .*opcode=4 subopcode=1 .*sync_src=$src sync_dst=$dst sync_id=$sync_id" "$log_file"; then
+            cat "$log_file"
             echo "FAIL: expected sync_set commands at GM-to-MTE4, MTE4-to-VCU, VCU-to-MTE2, and MTE2-to-GM-file boundaries." >&2
             exit 1
         fi
-        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_wait .*opcode=4 subopcode=2 .*sync_src=$src sync_dst=$dst sync_id=$sync_id" "$gem5_log"; then
-            cat "$gem5_log"
+        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_wait .*opcode=4 subopcode=2 .*sync_src=$src sync_dst=$dst sync_id=$sync_id" "$log_file"; then
+            cat "$log_file"
             echo "FAIL: expected sync_wait commands at GM-to-MTE4, MTE4-to-VCU, VCU-to-MTE2, and MTE2-to-GM-file boundaries." >&2
             exit 1
         fi
     done
 
-    if ! grep -q "rd_value=16" "$gem5_log"; then
-        cat "$gem5_log"
+    if ! grep -q "rd_value=16" "$log_file"; then
+        cat "$log_file"
         echo "FAIL: MTE rlen rd source snapshot was not observed." >&2
         exit 1
     fi
 
     if [[ ! -s "$actual_result_bin" ]]; then
-        cat "$gem5_log"
+        cat "$log_file"
         echo "FAIL: NPU result bin was not generated: $actual_result_bin" >&2
         exit 1
     fi
 
     echo "+ cmp -s $expected_result_bin $actual_result_bin"
     if ! cmp -s "$expected_result_bin" "$actual_result_bin"; then
-        cat "$gem5_log"
+        cat "$log_file"
         echo "FAIL: NPU result bin differs from expected VADD output." >&2
         echo "+ cmp -l $expected_result_bin $actual_result_bin" >&2
         cmp -l "$expected_result_bin" "$actual_result_bin" >&2 || true
         exit 1
     fi
 
-    check_xai_vcd "smoke" "$smoke_vcd_file" 1 "$gem5_log"
+    check_xai_vcd "smoke" "$vcd_file" 1 "$log_file"
 }
 
 run_smoke()
 {
+    local smoke_src="$project_root/npu-tests/baremetal/xai-elf/xai_smoke.cc"
+    local smoke_elf="$build_dir/xai_smoke.elf"
+    local smoke_asm_file="$build_dir/xai_smoke.asm"
+    local gem5_output_dir="$build_dir/gem5_output"
+    local gem5_log="$gem5_output_dir/xai_smoke.log"
+    local m5out_dir="$gem5_output_dir/m5out"
+    local smoke_vcd_base="xai_smoke_npu_trace"
+    local smoke_vcd_file="$m5out_dir/${smoke_vcd_base}.vcd"
+    local gm_file_io_root="$build_dir/gm_file_io"
+    local data_generator="$project_root/npu-tests/reference/xai-elf/generate_smoke_data.py"
+    local file_hart_id=0
+    local file_index=0
+    local expected_result_bin="$build_dir/xai_expected.bin"
+    local actual_result_bin="$gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
+
     require_gem5
-    generate_smoke_data
+    generate_smoke_data "$data_generator" "$gm_file_io_root" "$file_hart_id" \
+        "$file_index" "$expected_result_bin" "$actual_result_bin"
     compile_xai_elf "$smoke_src" "$smoke_elf" "$smoke_asm_file"
     check_xai_elf "smoke" "$smoke_elf"
-    run_smoke_sim
-    check_smoke_log
+    run_smoke_sim "$gem5_log" "$m5out_dir" "$smoke_elf" \
+        "$gm_file_io_root" "$smoke_vcd_base"
+    check_smoke_log "$gem5_log" "$smoke_vcd_file" "$expected_result_bin" \
+        "$actual_result_bin"
     echo "PASS: Xai full-flow ELF completed NPU execution with expected VADD result."
 }
 
 generate_multinpu_data()
 {
-    echo "+ python3 $multinpu_data_generator --gm-file-io-root $multinpu_gm_file_io_root --expected-root $multinpu_expected_root --npu-count 4"
+    local multinpu_data_generator=$1
+    local multinpu_gm_file_io_root=$2
+    local multinpu_expected_root=$3
+    local npu_count=$4
+
+    echo "+ python3 $multinpu_data_generator --gm-file-io-root $multinpu_gm_file_io_root --expected-root $multinpu_expected_root --npu-count $npu_count"
     python3 "$multinpu_data_generator" \
         --gm-file-io-root "$multinpu_gm_file_io_root" \
         --expected-root "$multinpu_expected_root" \
-        --npu-count 4
-    for npu_id in 0 1 2 3; do
+        --npu-count "$npu_count"
+    local npu_id
+    for ((npu_id = 0; npu_id < npu_count; ++npu_id)); do
         test -s "$multinpu_gm_file_io_root/npu${npu_id}/GMInputFile_0_0.bin"
         test -s "$multinpu_expected_root/xai_multinpu_expected_npu${npu_id}.bin"
         rm -f "$multinpu_gm_file_io_root/npu${npu_id}/GMOutputFile_0_0.bin"
@@ -607,34 +515,49 @@ generate_multinpu_data()
 
 run_multinpu_sim()
 {
-    rm -f "$multinpu_vcd_file"
-    run_xai_sim 45 "$multinpu_log" "$multinpu_m5out_dir" "$multinpu_elf" \
-        "$multinpu_gm_file_io_root" "$multinpu_vcd_base" 4
+    local log_file=$1
+    local m5out_dir=$2
+    local elf_file=$3
+    local gm_file_io_root=$4
+    local vcd_base=$5
+    local npu_count=$6
+    local vcd_file="$m5out_dir/${vcd_base}.vcd"
+
+    rm -f "$vcd_file"
+    run_xai_sim 45 "$log_file" "$m5out_dir" "$elf_file" \
+        "$gm_file_io_root" "$vcd_base" "$npu_count"
 }
 
 check_multinpu_log()
 {
-    check_xai_log_common "multi-NPU" "$multinpu_log"
+    local log_file=$1
+    local vcd_file=$2
+    local gm_file_io_root=$3
+    local expected_root=$4
+    local npu_count=$5
 
-    for npu_id in 0 1 2 3; do
-        if ! grep -Fq "CPU[0]NPU[${npu_id}] : op=WriteDataToGm opcode=5 subopcode=0 mask=0xf" "$multinpu_log"; then
-            cat "$multinpu_log"
+    check_xai_log_common "multi-NPU" "$log_file"
+
+    local npu_id
+    for ((npu_id = 0; npu_id < npu_count; ++npu_id)); do
+        if ! grep -Fq "CPU[0]NPU[${npu_id}] : op=WriteDataToGm opcode=5 subopcode=0 mask=0xf" "$log_file"; then
+            cat "$log_file"
             echo "FAIL: NPU${npu_id} did not execute its WriteDataToGm command." >&2
             exit 1
         fi
 
         local expected_bin
         local actual_bin
-        expected_bin="$multinpu_expected_root/xai_multinpu_expected_npu${npu_id}.bin"
-        actual_bin="$multinpu_gm_file_io_root/npu${npu_id}/GMOutputFile_0_0.bin"
+        expected_bin="$expected_root/xai_multinpu_expected_npu${npu_id}.bin"
+        actual_bin="$gm_file_io_root/npu${npu_id}/GMOutputFile_0_0.bin"
         if [[ ! -s "$actual_bin" ]]; then
-            cat "$multinpu_log"
+            cat "$log_file"
             echo "FAIL: NPU${npu_id} result bin was not generated: $actual_bin" >&2
             exit 1
         fi
         echo "+ cmp -s $expected_bin $actual_bin"
         if ! cmp -s "$expected_bin" "$actual_bin"; then
-            cat "$multinpu_log"
+            cat "$log_file"
             echo "FAIL: NPU${npu_id} result bin differs from expected VADD output." >&2
             echo "+ cmp -l $expected_bin $actual_bin" >&2
             cmp -l "$expected_bin" "$actual_bin" >&2 || true
@@ -642,93 +565,280 @@ check_multinpu_log()
         fi
     done
 
-    check_xai_vcd "multi-NPU" "$multinpu_vcd_file" 4 "$multinpu_log"
+    check_xai_vcd "multi-NPU" "$vcd_file" "$npu_count" "$log_file"
 }
 
 run_multinpu()
 {
+    local multinpu_src="$project_root/npu-tests/baremetal/xai-elf/xai_multinpu_smoke.cc"
+    local multinpu_elf="$build_dir/xai_multinpu_smoke.elf"
+    local multinpu_asm_file="$build_dir/xai_multinpu_smoke.asm"
+    local gem5_output_dir="$build_dir/gem5_output"
+    local multinpu_log="$gem5_output_dir/xai_multinpu_smoke.log"
+    local multinpu_m5out_dir="$gem5_output_dir/multinpu_m5out"
+    local multinpu_vcd_base="xai_multinpu_npu_trace"
+    local multinpu_vcd_file="$multinpu_m5out_dir/${multinpu_vcd_base}.vcd"
+    local multinpu_gm_file_io_root="$build_dir/gm_file_io_multinpu"
+    local multinpu_expected_root="$build_dir/multinpu_expected"
+    local multinpu_data_generator="$project_root/npu-tests/reference/xai-elf/generate_multinpu_smoke_data.py"
+    local npu_count=4
+
     require_gem5
-    generate_multinpu_data
+    generate_multinpu_data "$multinpu_data_generator" \
+        "$multinpu_gm_file_io_root" "$multinpu_expected_root" "$npu_count"
     compile_xai_elf "$multinpu_src" "$multinpu_elf" "$multinpu_asm_file"
     check_xai_elf "multi-NPU" "$multinpu_elf"
-    run_multinpu_sim
-    check_multinpu_log
+    run_multinpu_sim "$multinpu_log" "$multinpu_m5out_dir" \
+        "$multinpu_elf" "$multinpu_gm_file_io_root" "$multinpu_vcd_base" \
+        "$npu_count"
+    check_multinpu_log "$multinpu_log" "$multinpu_vcd_file" \
+        "$multinpu_gm_file_io_root" "$multinpu_expected_root" "$npu_count"
     echo "PASS: single-CPU multi-NPU Xai flow completed with distinct per-NPU GM results."
+}
+
+generate_cube_smoke_data()
+{
+    local cube_smoke_data_generator=$1
+    local cube_smoke_gm_file_io_root=$2
+    local hart_id=$3
+    local file_index=$4
+    local cube_smoke_expected_result_bin=$5
+    local cube_smoke_actual_result_bin=$6
+    local cube_smoke_write_data_fixture="$cube_smoke_gm_file_io_root/GMInputFile_${hart_id}_${file_index}.bin"
+
+    echo "+ python3 $cube_smoke_data_generator --gm-file-io-root $cube_smoke_gm_file_io_root --hart-id $hart_id --index $file_index --expected-bin $cube_smoke_expected_result_bin"
+    python3 "$cube_smoke_data_generator" \
+        --gm-file-io-root "$cube_smoke_gm_file_io_root" \
+        --hart-id "$hart_id" \
+        --index "$file_index" \
+        --expected-bin "$cube_smoke_expected_result_bin"
+    test -s "$cube_smoke_write_data_fixture"
+    test -s "$cube_smoke_expected_result_bin"
+    rm -f "$cube_smoke_actual_result_bin"
+}
+
+run_cube_smoke_sim()
+{
+    local log_file=$1
+    local m5out_dir=$2
+    local elf_file=$3
+    local gm_file_io_root=$4
+    local vcd_base=$5
+    local vcd_file="$m5out_dir/${vcd_base}.vcd"
+
+    rm -f "$vcd_file"
+    run_xai_sim 60 "$log_file" "$m5out_dir" "$elf_file" \
+        "$gm_file_io_root" "$vcd_base"
+}
+
+check_cube_smoke_log()
+{
+    local log_file=$1
+    local vcd_file=$2
+    local expected_result_bin=$3
+    local actual_result_bin=$4
+    local op
+    check_xai_log_common "cube smoke" "$log_file"
+
+    for op in WriteDataToGm mte4_gm_to_l1 mte1_l1_to_l0a \
+        mte1_l1_to_l0b cube_mma_fp32 fixpipe_l0c_to_l1 \
+        mte1_l1_to_ub mte2_ub_to_gm LoadDataFromGm sync_set sync_wait; do
+        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=$op " "$log_file"; then
+            cat "$log_file"
+            echo "FAIL: cube smoke operation $op did not reach NPU target." >&2
+            exit 1
+        fi
+    done
+
+    if [[ ! -s "$actual_result_bin" ]]; then
+        cat "$log_file"
+        echo "FAIL: cube smoke result bin was not generated: $actual_result_bin" >&2
+        exit 1
+    fi
+
+    echo "+ cmp -s $expected_result_bin $actual_result_bin"
+    if ! cmp -s "$expected_result_bin" "$actual_result_bin"; then
+        cat "$log_file"
+        echo "FAIL: cube smoke result bin differs from expected fp32 matmul output." >&2
+        echo "+ cmp -l $expected_result_bin $actual_result_bin" >&2
+        cmp -l "$expected_result_bin" "$actual_result_bin" >&2 || true
+        exit 1
+    fi
+
+    check_xai_vcd "cube smoke" "$vcd_file" 1 "$log_file"
+}
+
+run_cube_smoke()
+{
+    local cube_smoke_src="$project_root/npu-tests/baremetal/xai-elf/xai_cube_smoke.cc"
+    local cube_smoke_elf="$build_dir/xai_cube_smoke.elf"
+    local cube_smoke_asm_file="$build_dir/xai_cube_smoke.asm"
+    local gem5_output_dir="$build_dir/gem5_output"
+    local cube_smoke_log="$gem5_output_dir/xai_cube_smoke.log"
+    local cube_smoke_m5out_dir="$gem5_output_dir/cube_smoke_m5out"
+    local cube_smoke_vcd_base="xai_cube_smoke_npu_trace"
+    local cube_smoke_vcd_file="$cube_smoke_m5out_dir/${cube_smoke_vcd_base}.vcd"
+    local cube_smoke_gm_file_io_root="$build_dir/gm_file_io_cube_smoke"
+    local cube_smoke_data_generator="$project_root/npu-tests/reference/xai-elf/generate_cube_smoke_data.py"
+    local file_hart_id=0
+    local file_index=0
+    local cube_smoke_expected_result_bin="$build_dir/xai_cube_smoke_expected.bin"
+    local cube_smoke_actual_result_bin="$cube_smoke_gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
+
+    require_gem5
+    generate_cube_smoke_data "$cube_smoke_data_generator" \
+        "$cube_smoke_gm_file_io_root" "$file_hart_id" "$file_index" \
+        "$cube_smoke_expected_result_bin" "$cube_smoke_actual_result_bin"
+    compile_xai_elf "$cube_smoke_src" "$cube_smoke_elf" \
+        "$cube_smoke_asm_file"
+    check_xai_elf "cube smoke" "$cube_smoke_elf"
+    run_cube_smoke_sim "$cube_smoke_log" "$cube_smoke_m5out_dir" \
+        "$cube_smoke_elf" "$cube_smoke_gm_file_io_root" \
+        "$cube_smoke_vcd_base"
+    check_cube_smoke_log "$cube_smoke_log" "$cube_smoke_vcd_file" \
+        "$cube_smoke_expected_result_bin" "$cube_smoke_actual_result_bin"
+    echo "PASS: cube smoke completed GM/L1/L0/Cube/Fixpipe/UB/GM flow."
 }
 
 generate_vcu_backpressure_data()
 {
-    echo "+ python3 $vcu_backpressure_data_generator --gm-file-io-root $vcu_backpressure_gm_file_io_root --hart-id $file_hart_id --index $vcu_backpressure_file_index --recursive-add-count $vcu_backpressure_recursive_add_count --expected-bin $vcu_backpressure_expected_result_bin"
-    python3 "$vcu_backpressure_data_generator" \
-        --gm-file-io-root "$vcu_backpressure_gm_file_io_root" \
-        --hart-id "$file_hart_id" \
-        --index "$vcu_backpressure_file_index" \
-        --recursive-add-count "$vcu_backpressure_recursive_add_count" \
-        --expected-bin "$vcu_backpressure_expected_result_bin"
-    test -s "$vcu_backpressure_write_data_fixture"
-    test -s "$vcu_backpressure_expected_result_bin"
-    rm -f "$vcu_backpressure_actual_result_bin"
+    local data_generator=$1
+    local gm_file_io_root=$2
+    local hart_id=$3
+    local file_index=$4
+    local recursive_add_count=$5
+    local expected_result_bin=$6
+    local actual_result_bin=$7
+    local write_data_fixture="$gm_file_io_root/GMInputFile_${hart_id}_${file_index}.bin"
+
+    echo "+ python3 $data_generator --gm-file-io-root $gm_file_io_root --hart-id $hart_id --index $file_index --recursive-add-count $recursive_add_count --expected-bin $expected_result_bin"
+    python3 "$data_generator" \
+        --gm-file-io-root "$gm_file_io_root" \
+        --hart-id "$hart_id" \
+        --index "$file_index" \
+        --recursive-add-count "$recursive_add_count" \
+        --expected-bin "$expected_result_bin"
+    test -s "$write_data_fixture"
+    test -s "$expected_result_bin"
+    rm -f "$actual_result_bin"
 }
 
 run_vcu_backpressure_sim()
 {
-    rm -f "$vcu_backpressure_vcd_file"
-    run_xai_sim 60 "$vcu_backpressure_log" "$vcu_backpressure_m5out_dir" \
-        "$vcu_backpressure_elf" "$vcu_backpressure_gm_file_io_root" \
-        "$vcu_backpressure_vcd_base"
+    local log_file=$1
+    local m5out_dir=$2
+    local elf_file=$3
+    local gm_file_io_root=$4
+    local vcd_base=$5
+    local vcd_file="$m5out_dir/${vcd_base}.vcd"
+
+    rm -f "$vcd_file"
+    run_xai_sim 60 "$log_file" "$m5out_dir" "$elf_file" \
+        "$gm_file_io_root" "$vcd_base"
 }
 
 run_vcu_backpressure_cache_debug_sim()
 {
-    rm -f "$vcu_backpressure_cache_debug_vcd_file" \
-        "$vcu_backpressure_cache_debug_m5out_dir/icache_debug.log"
-    run_xai_sim 60 "$vcu_backpressure_cache_debug_log" \
-        "$vcu_backpressure_cache_debug_m5out_dir" \
-        "$vcu_backpressure_elf" "$vcu_backpressure_gm_file_io_root" \
-        "$vcu_backpressure_vcd_base" "" "icache_debug.log"
+    local log_file=$1
+    local m5out_dir=$2
+    local elf_file=$3
+    local gm_file_io_root=$4
+    local vcd_base=$5
+    local vcd_file="$m5out_dir/${vcd_base}.vcd"
+
+    rm -f "$vcd_file" "$m5out_dir/icache_debug.log"
+    run_xai_sim 60 "$log_file" "$m5out_dir" "$elf_file" \
+        "$gm_file_io_root" "$vcd_base" "" "icache_debug.log"
 }
 
 check_vcu_backpressure_log()
 {
-    check_xai_log_common "VCU backpressure" "$vcu_backpressure_log"
+    local log_file=$1
+    local vcd_file=$2
 
-    if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_set .* sync_src=2 sync_dst=1 sync_id=2" "$vcu_backpressure_log"; then
-        cat "$vcu_backpressure_log"
+    check_xai_log_common "VCU backpressure" "$log_file"
+
+    if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_set .* sync_src=2 sync_dst=1 sync_id=2" "$log_file"; then
+        cat "$log_file"
         echo "FAIL: VCU-to-MTE2 sync_set did not complete." >&2
         exit 1
     fi
 
-    if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_wait .* sync_src=2 sync_dst=1 sync_id=2" "$vcu_backpressure_log"; then
-        cat "$vcu_backpressure_log"
+    if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_wait .* sync_src=2 sync_dst=1 sync_id=2" "$log_file"; then
+        cat "$log_file"
         echo "FAIL: VCU-to-MTE2 sync_wait did not complete." >&2
         exit 1
     fi
 
-    check_xai_vcd "VCU backpressure" "$vcu_backpressure_vcd_file" 1 "$vcu_backpressure_log"
-    check_vcd_signal_minimum "VCU backpressure" "$vcu_backpressure_vcd_file" \
-        "vcu_queue_size" 8 "$vcu_backpressure_log"
+    check_xai_vcd "VCU backpressure" "$vcd_file" 1 "$log_file"
+    check_vcd_signal_minimum "VCU backpressure" "$vcd_file" \
+        "vcu_queue_size" 8 "$log_file"
 }
 
 run_vcu_backpressure()
 {
+    local vcu_backpressure_src="$project_root/npu-tests/baremetal/xai-elf/xai_vcu_backpressure.cc"
+    local vcu_backpressure_elf="$build_dir/xai_vcu_backpressure.elf"
+    local vcu_backpressure_asm_file="$build_dir/xai_vcu_backpressure.asm"
+    local gem5_output_dir="$build_dir/gem5_output"
+    local vcu_backpressure_log="$gem5_output_dir/xai_vcu_backpressure.log"
+    local vcu_backpressure_m5out_dir="$gem5_output_dir/vcu_backpressure_m5out"
+    local vcu_backpressure_vcd_base="xai_vcu_backpressure_npu_trace"
+    local vcu_backpressure_vcd_file="$vcu_backpressure_m5out_dir/${vcu_backpressure_vcd_base}.vcd"
+    local vcu_backpressure_gm_file_io_root="$build_dir/gm_file_io_vcu_backpressure"
+    local vcu_backpressure_data_generator="$project_root/npu-tests/reference/xai-elf/generate_vcu_backpressure_data.py"
+    local file_hart_id=0
+    local vcu_backpressure_file_index=1
+    local vcu_backpressure_recursive_add_count=16
+    local vcu_backpressure_expected_result_bin="$build_dir/xai_vcu_backpressure_expected.bin"
+    local vcu_backpressure_actual_result_bin="$vcu_backpressure_gm_file_io_root/GMOutputFile_${file_hart_id}_${vcu_backpressure_file_index}.bin"
+
     require_gem5
-    generate_vcu_backpressure_data
+    generate_vcu_backpressure_data "$vcu_backpressure_data_generator" \
+        "$vcu_backpressure_gm_file_io_root" "$file_hart_id" \
+        "$vcu_backpressure_file_index" "$vcu_backpressure_recursive_add_count" \
+        "$vcu_backpressure_expected_result_bin" \
+        "$vcu_backpressure_actual_result_bin"
     compile_xai_elf "$vcu_backpressure_src" "$vcu_backpressure_elf" \
         "$vcu_backpressure_asm_file"
     check_xai_elf "VCU backpressure" "$vcu_backpressure_elf"
-    run_vcu_backpressure_sim
-    check_vcu_backpressure_log
+    run_vcu_backpressure_sim "$vcu_backpressure_log" \
+        "$vcu_backpressure_m5out_dir" "$vcu_backpressure_elf" \
+        "$vcu_backpressure_gm_file_io_root" "$vcu_backpressure_vcd_base"
+    check_vcu_backpressure_log "$vcu_backpressure_log" \
+        "$vcu_backpressure_vcd_file"
     echo "PASS: recursive VCU vadd flow grew the VCU FIFO."
 }
 
 run_vcu_backpressure_cache_debug()
 {
+    local vcu_backpressure_src="$project_root/npu-tests/baremetal/xai-elf/xai_vcu_backpressure.cc"
+    local vcu_backpressure_elf="$build_dir/xai_vcu_backpressure.elf"
+    local vcu_backpressure_asm_file="$build_dir/xai_vcu_backpressure.asm"
+    local gem5_output_dir="$build_dir/gem5_output"
+    local vcu_backpressure_cache_debug_log="$gem5_output_dir/xai_vcu_backpressure_cache_debug.log"
+    local vcu_backpressure_cache_debug_m5out_dir="$gem5_output_dir/vcu_backpressure_cache_debug_m5out"
+    local vcu_backpressure_vcd_base="xai_vcu_backpressure_npu_trace"
+    local vcu_backpressure_gm_file_io_root="$build_dir/gm_file_io_vcu_backpressure"
+    local vcu_backpressure_data_generator="$project_root/npu-tests/reference/xai-elf/generate_vcu_backpressure_data.py"
+    local file_hart_id=0
+    local vcu_backpressure_file_index=1
+    local vcu_backpressure_recursive_add_count=16
+    local vcu_backpressure_expected_result_bin="$build_dir/xai_vcu_backpressure_expected.bin"
+    local vcu_backpressure_actual_result_bin="$vcu_backpressure_gm_file_io_root/GMOutputFile_${file_hart_id}_${vcu_backpressure_file_index}.bin"
+
     require_gem5
-    generate_vcu_backpressure_data
+    generate_vcu_backpressure_data "$vcu_backpressure_data_generator" \
+        "$vcu_backpressure_gm_file_io_root" "$file_hart_id" \
+        "$vcu_backpressure_file_index" "$vcu_backpressure_recursive_add_count" \
+        "$vcu_backpressure_expected_result_bin" \
+        "$vcu_backpressure_actual_result_bin"
     compile_xai_elf "$vcu_backpressure_src" "$vcu_backpressure_elf" \
         "$vcu_backpressure_asm_file"
     check_xai_elf "VCU backpressure" "$vcu_backpressure_elf"
-    run_vcu_backpressure_cache_debug_sim
+    run_vcu_backpressure_cache_debug_sim "$vcu_backpressure_cache_debug_log" \
+        "$vcu_backpressure_cache_debug_m5out_dir" "$vcu_backpressure_elf" \
+        "$vcu_backpressure_gm_file_io_root" "$vcu_backpressure_vcd_base"
     check_xai_log_common "VCU backpressure cache debug" \
         "$vcu_backpressure_cache_debug_log"
     echo "PASS: VCU backpressure cache debug log generated at $vcu_backpressure_cache_debug_m5out_dir/icache_debug.log"
@@ -742,17 +852,14 @@ fi
 
 check_host
 cd "$project_root"
-mkdir -p "$build_dir" "$m5out_dir" "$multinpu_m5out_dir" "$dramsim3_output_dir" \
-    "$vcu_backpressure_m5out_dir" "$vcu_backpressure_cache_debug_m5out_dir" \
-    "$gm_file_io_root" \
-    "$multinpu_gm_file_io_root" "$vcu_backpressure_gm_file_io_root" \
-    "$multinpu_expected_root"
+mkdir -p "$build_dir"
 
 case "$phase" in
     all)
         build_gem5
         run_smoke
         run_multinpu
+        run_cube_smoke
         run_vcu_backpressure
         ;;
     build-gem5)
@@ -763,6 +870,9 @@ case "$phase" in
         ;;
     run-multinpu)
         run_multinpu
+        ;;
+    run-cube-smoke)
+        run_cube_smoke
         ;;
     run-vcu-backpressure)
         run_vcu_backpressure
