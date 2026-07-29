@@ -3,6 +3,56 @@
 namespace npu_mvp
 {
 
+bool
+NpuTop::is_cpu_sync_set(const NpuCommand &command) const
+{
+    return command.opcode == Opcode::Sync &&
+           command.sync_opcode == SyncOpcode::Set &&
+           command.sync_src == SyncEndpoint::Cpu;
+}
+
+bool
+NpuTop::is_cpu_sync_wait(const NpuCommand &command) const
+{
+    return command.opcode == Opcode::Sync &&
+           command.sync_opcode == SyncOpcode::Wait &&
+           command.sync_dst == SyncEndpoint::Cpu;
+}
+
+void
+NpuTop::signal_cpu_sync(const NpuCommand &command)
+{
+    if ((command.npu_mask & (1U << config.npu_id)) == 0)
+        return;
+
+    signal_sync_token(command);
+}
+
+bool
+NpuTop::cpu_sync_ready(const NpuCommand &command) const
+{
+    if ((command.npu_mask & (1U << config.npu_id)) == 0)
+        return true;
+
+    const SyncToken token{command.sync_src, command.sync_dst, command.sync_id};
+    const auto it = sync.token_counts.find(token);
+    return it != sync.token_counts.end() && it->second > 0;
+}
+
+void
+NpuTop::consume_cpu_sync(const NpuCommand &command)
+{
+    if ((command.npu_mask & (1U << config.npu_id)) == 0)
+        return;
+
+    const SyncToken token{command.sync_src, command.sync_dst, command.sync_id};
+    auto it = sync.token_counts.find(token);
+    if (it == sync.token_counts.end() || it->second == 0)
+        return;
+
+    --it->second;
+}
+
 void
 NpuTop::execute_sync(const ScheduledCommand &command)
 {

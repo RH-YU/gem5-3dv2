@@ -37,6 +37,7 @@ class NpuCluster : public sc_core::sc_module, public NpuCommandTarget
     void trace_cpu_backpressure();
     static NpuConfig config_for_npu(const NpuConfig &base_config,
                                     uint8_t npu_id, uint8_t npu_count);
+    DispatchStatus submit_cpu_sync(const NpuCommand &command);
 
     tlm_utils::simple_target_socket<NpuCluster, 64> command_target;
     sc_gem5::TlmTargetWrapper<64> tlm_wrapper;

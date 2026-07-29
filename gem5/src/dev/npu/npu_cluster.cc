@@ -169,9 +169,42 @@ NpuCluster::trace_cpu_backpressure()
 }
 
 DispatchStatus
+NpuCluster::submit_cpu_sync(const NpuCommand &command)
+{
+    if (npus.empty())
+        return DispatchStatus::Invalid;
+
+    if (npus.front()->is_cpu_sync_set(command)) {
+        for (const auto &npu : npus)
+            npu->signal_cpu_sync(command);
+        return DispatchStatus::Accepted;
+    }
+
+    if (npus.front()->is_cpu_sync_wait(command)) {
+        for (const auto &npu : npus) {
+            if (!npu->cpu_sync_ready(command))
+                return DispatchStatus::Backpressured;
+        }
+        for (const auto &npu : npus)
+            npu->consume_cpu_sync(command);
+        return DispatchStatus::Accepted;
+    }
+
+    return DispatchStatus::Invalid;
+}
+
+DispatchStatus
 NpuCluster::submitNpuCommand(const NpuCommand &command)
 {
     trace_cpu_command();
+    if (!npus.empty() && (npus.front()->is_cpu_sync_set(command) ||
+                         npus.front()->is_cpu_sync_wait(command))) {
+        const DispatchStatus status = submit_cpu_sync(command);
+        if (status == DispatchStatus::Backpressured)
+            trace_cpu_backpressure();
+        return status;
+    }
+
     bool backpressured = false;
     bool invalid = false;
     for (const auto &npu : npus) {

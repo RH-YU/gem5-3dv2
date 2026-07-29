@@ -33,6 +33,11 @@ class NpuTop : public sc_core::sc_module
 
     bool can_accept(const NpuCommand &command) const;
     SubmitResult submit(const NpuCommand &command);
+    bool is_cpu_sync_set(const NpuCommand &command) const;
+    bool is_cpu_sync_wait(const NpuCommand &command) const;
+    void signal_cpu_sync(const NpuCommand &command);
+    bool cpu_sync_ready(const NpuCommand &command) const;
+    void consume_cpu_sync(const NpuCommand &command);
     void register_trace(sc_core::sc_trace_file *trace_file,
                         const std::string &scope);
     uint64_t scope_watermark() const;

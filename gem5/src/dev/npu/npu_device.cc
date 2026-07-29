@@ -81,8 +81,29 @@ NpuDevice::gem5_getPort(const std::string &if_name, int idx)
 }
 
 DispatchStatus
+NpuDevice::submit_cpu_sync(const NpuCommand &command)
+{
+    if (npu.is_cpu_sync_set(command)) {
+        npu.signal_cpu_sync(command);
+        return DispatchStatus::Accepted;
+    }
+
+    if (npu.is_cpu_sync_wait(command)) {
+        if (!npu.cpu_sync_ready(command))
+            return DispatchStatus::Backpressured;
+        npu.consume_cpu_sync(command);
+        return DispatchStatus::Accepted;
+    }
+
+    return DispatchStatus::Invalid;
+}
+
+DispatchStatus
 NpuDevice::submitNpuCommand(const NpuCommand &command)
 {
+    if (npu.is_cpu_sync_set(command) || npu.is_cpu_sync_wait(command))
+        return submit_cpu_sync(command);
+
     if (!npu.can_accept(command))
         return DispatchStatus::Backpressured;
 

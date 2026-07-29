@@ -54,6 +54,7 @@ enum class SyncEndpoint : uint8_t {
     Mte2 = 1,
     Vcu = 2,
     GmFileIo = 3,
+    Cpu = 4,
 };
 
 enum class SubmitResult : uint8_t {

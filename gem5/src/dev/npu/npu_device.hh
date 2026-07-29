@@ -23,6 +23,8 @@ class NpuDevice : public sc_core::sc_module, public NpuCommandTarget
     const NpuTop &top() const;
 
   private:
+    DispatchStatus submit_cpu_sync(const NpuCommand &command);
+
     NpuTop npu;
     gem5::Addr command_base = 0;
     sc_gem5::TlmTargetWrapper<64, tlm::tlm_base_protocol_types, 1,
