@@ -538,17 +538,23 @@ check_smoke_log()
         fi
     done
 
-    if [[ $(grep -Ec "CPU\\[0\\]NPU\\[0\\] : op=sync_set opcode=4 subopcode=1 " "$gem5_log") -lt 4 ]]; then
-        cat "$gem5_log"
-        echo "FAIL: expected sync_set commands at GM-to-MTE4, MTE4-to-VCU, VCU-to-MTE2, and MTE2-to-GM-file boundaries." >&2
-        exit 1
-    fi
-
-    if [[ $(grep -Ec "CPU\\[0\\]NPU\\[0\\] : op=sync_wait opcode=4 subopcode=2 " "$gem5_log") -lt 4 ]]; then
-        cat "$gem5_log"
-        echo "FAIL: expected sync_wait commands at GM-to-MTE4, MTE4-to-VCU, VCU-to-MTE2, and MTE2-to-GM-file boundaries." >&2
-        exit 1
-    fi
+    local boundary
+    local src
+    local dst
+    local sync_id
+    for boundary in "3 0 0" "0 2 1" "2 1 2" "1 3 3"; do
+        read -r src dst sync_id <<<"$boundary"
+        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_set .*opcode=4 subopcode=1 .*sync_src=$src sync_dst=$dst sync_id=$sync_id" "$gem5_log"; then
+            cat "$gem5_log"
+            echo "FAIL: expected sync_set commands at GM-to-MTE4, MTE4-to-VCU, VCU-to-MTE2, and MTE2-to-GM-file boundaries." >&2
+            exit 1
+        fi
+        if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_wait .*opcode=4 subopcode=2 .*sync_src=$src sync_dst=$dst sync_id=$sync_id" "$gem5_log"; then
+            cat "$gem5_log"
+            echo "FAIL: expected sync_wait commands at GM-to-MTE4, MTE4-to-VCU, VCU-to-MTE2, and MTE2-to-GM-file boundaries." >&2
+            exit 1
+        fi
+    done
 
     if ! grep -q "rd_value=16" "$gem5_log"; then
         cat "$gem5_log"
