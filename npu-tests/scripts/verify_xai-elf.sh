@@ -271,6 +271,7 @@ run_xai_sim()
         --npu-cmd-base 0x20000000
         --npu-cmd-size 0x1000
         --npu-vcd-trace-file "$vcd_base"
+        --cacheline_size=1024
     )
     if [[ -n "$npu_count" ]]; then
         sim_args+=(--num-cpus 1)

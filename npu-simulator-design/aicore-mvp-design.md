@@ -24,10 +24,6 @@ GM -> MTE4 -> L1 -> MTE1 -> L0A/L0B -> Cube -> L0C -> Fixpipe -> L1/UB
 
 ![gem5 + SystemC NPU architecture](images/gem5-systemc-npu-architecture.svg)
 
-### AI 版框图
-
-![gem5 + SystemC NPU architecture (AI)](images/gem5-systemc-npu-architecture-ai.png)
-
 ## 3. 代码模块分层
 
 | 层级 | 主要文件 | 当前职责 |
