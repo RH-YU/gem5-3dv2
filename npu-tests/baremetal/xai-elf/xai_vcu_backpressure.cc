@@ -106,6 +106,7 @@ xai_vstore_v1(unsigned long ub_dst)
 #define XAI_SYNC_MTE2 1
 #define XAI_SYNC_VCU 2
 #define XAI_SYNC_GM_FILE_IO 3
+#define XAI_SYNC_CPU 4
 
 } // namespace
 
@@ -146,6 +147,8 @@ main()
     XAI_SYNC_WAIT(XAI_SYNC_MTE2, XAI_SYNC_GM_FILE_IO, 3);
 
     LoadDataFromGm(vector_bytes, gm_result, file_index);
+    XAI_SYNC_SET(XAI_SYNC_GM_FILE_IO, XAI_SYNC_CPU, 4);
+    XAI_SYNC_WAIT(XAI_SYNC_GM_FILE_IO, XAI_SYNC_CPU, 4);
 
     return 0;
 }
