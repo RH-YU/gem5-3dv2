@@ -273,10 +273,6 @@ def attach_npu(system, args):
         vcd_trace_file=args.npu_vcd_trace_file,
         vcd_trace_cycle_ticks=cpu_cycle_ticks,
     )
-    system.npu_bridge = Gem5ToTlmBridge64()
-    system.npu_bridge.addr_ranges = [AddrRange(start=cmd_base, size=cmd_size)]
-    system.npu_bridge.gem5 = system.membus.mem_side_ports
-    system.npu_bridge.tlm = system.npu.tlm
     if args.npu_vcd_trace_file:
         system.npu_cpu_vcd_probe = NpuCpuVcdProbe(
             manager=system.cpu[0],

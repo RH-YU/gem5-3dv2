@@ -59,8 +59,6 @@ namespace npu_mvp
 NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
                        uint8_t npu_count)
     : sc_core::sc_module(name),
-      command_target("command_target"),
-      tlm_wrapper(command_target, std::string(name) + ".tlm", gem5::InvalidPortID),
       command_base(config.npu_command_base),
       dispatch_delay(config.scheduler_dispatch_delay),
       trace_cycle_ticks(active_cpu_cycle_ticks(config.vcd_trace_cycle_ticks)),
@@ -75,10 +73,8 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
     if (npu_count == 0 || npu_count > 4)
         fatal("NpuCluster npu_count must be in the range [1, 4].");
 
-    registerNpuPacketConversionStep();
     if (command_base != 0)
         registerNpuCommandTarget(command_base, *this);
-    command_target.register_b_transport(this, &NpuCluster::b_transport);
 
     const std::string trace_basename =
             normalize_vcd_trace_basename(config.vcd_trace_file);
@@ -104,15 +100,6 @@ NpuCluster::~NpuCluster()
         unregisterNpuCommandTarget(command_base, *this);
     if (trace_file != nullptr)
         sc_core::sc_close_vcd_trace_file(trace_file);
-}
-
-gem5::Port &
-NpuCluster::gem5_getPort(const std::string &if_name, int idx)
-{
-    if (if_name == "tlm")
-        return tlm_wrapper;
-
-    fatal("NpuCluster has no port named %s[%d].", if_name, idx);
 }
 
 NpuConfig
@@ -227,32 +214,6 @@ NpuCluster::submitNpuCommand(const NpuCommand &command)
     return invalid ? DispatchStatus::Invalid : DispatchStatus::Accepted;
 }
 
-void
-NpuCluster::b_transport(tlm::tlm_generic_payload &transaction,
-                        sc_core::sc_time &delay)
-{
-    auto *extension = transaction.get_extension<NpuCommandExtension>();
-    if (extension == nullptr) {
-        transaction.set_response_status(tlm::TLM_COMMAND_ERROR_RESPONSE);
-        return;
-    }
-
-    const DispatchStatus status = submitNpuCommand(extension->command);
-    if (extension->sender_state != nullptr)
-        extension->sender_state->status = status;
-
-    if (status == DispatchStatus::Backpressured) {
-        transaction.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
-        return;
-    }
-    if (status == DispatchStatus::Invalid) {
-        transaction.set_response_status(tlm::TLM_COMMAND_ERROR_RESPONSE);
-        return;
-    }
-
-    transaction.set_response_status(tlm::TLM_OK_RESPONSE);
-}
-
 } // namespace npu_mvp
 
 namespace gem5
@@ -261,7 +222,6 @@ namespace gem5
 npu_mvp::NpuCluster *
 NpuClusterParams::create() const
 {
-    npu_mvp::registerNpuPacketConversionStep();
     return new npu_mvp::NpuCluster(name.c_str(), make_config(*this), npu_count);
 }
 

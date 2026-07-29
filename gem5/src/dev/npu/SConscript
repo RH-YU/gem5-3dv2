@@ -5,12 +5,11 @@ if not env['CONF']['USE_SYSTEMC']:
 
 env.UseSystemcCheck(warn=True)
 
-SimObject('Npu.py', sim_objects=['NpuDevice', 'NpuCluster', 'NpuCpuVcdProbe'])
+SimObject('Npu.py', sim_objects=['NpuCluster', 'NpuCpuVcdProbe'])
 
 Source('npu_command.cc')
 Source('npu_cluster.cc')
 Source('npu_cpu_trace.cc')
-Source('npu_device.cc')
 Source('npu_gm_file_io.cc')
 Source('npu_mte_common.cc')
 Source('npu_mte2.cc')

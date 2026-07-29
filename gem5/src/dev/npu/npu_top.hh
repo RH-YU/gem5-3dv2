@@ -17,7 +17,6 @@
 #include "systemc/ext/core/sc_event.hh"
 #include "systemc/ext/core/sc_module.hh"
 #include "systemc/ext/core/sc_module_name.hh"
-#include "systemc/ext/tlm_utils/simple_target_socket.h"
 
 namespace npu_mvp
 {
@@ -28,8 +27,6 @@ class NpuTop : public sc_core::sc_module
     SC_HAS_PROCESS(NpuTop);
 
     NpuTop(sc_core::sc_module_name name, NpuConfig config);
-
-    tlm_utils::simple_target_socket_optional<NpuTop, 64> command_target;
 
     bool can_accept(const NpuCommand &command) const;
     SubmitResult submit(const NpuCommand &command);
@@ -58,7 +55,6 @@ class NpuTop : public sc_core::sc_module
 
     // Command target and scheduler core.
     void dispatch_ingress();
-    void b_transport(tlm::tlm_generic_payload &transaction, sc_core::sc_time &delay);
     bool dispatch_one(const NpuCommand &command);
     bool enqueue_scheduled(Engine engine, ScheduledCommand &&command);
     Engine route_engine(const NpuCommand &command) const;

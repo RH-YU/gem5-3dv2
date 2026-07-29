@@ -37,7 +37,7 @@ ranges_overlap(uint64_t first_base, uint64_t first_size,
 } // anonymous namespace
 
 NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
-    : sc_core::sc_module(name), command_target("command_target"), config(std::move(config)),
+    : sc_core::sc_module(name), config(std::move(config)),
       gm(this->config.gm_size, this->config.gm_page_size), ub(this->config.ub_size),
       vcu(this->config.vector_register_count, this->config.vector_register_bytes)
 {
@@ -57,7 +57,6 @@ NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
     SC_THREAD(mte2_thread);
     SC_THREAD(vcu_thread);
     SC_THREAD(gm_file_io_thread);
-    command_target.register_b_transport(this, &NpuTop::b_transport);
 }
 
 bool
@@ -92,33 +91,6 @@ NpuTop::register_trace(sc_core::sc_trace_file *tf, const std::string &scope)
 {
     trace_file = tf;
     register_npu_trace_signals(trace_file, trace_signals, scope);
-}
-
-void
-NpuTop::b_transport(tlm::tlm_generic_payload &transaction, sc_core::sc_time &delay)
-{
-    auto *extension = transaction.get_extension<NpuCommandExtension>();
-    if (extension == nullptr) {
-        transaction.set_response_status(tlm::TLM_COMMAND_ERROR_RESPONSE);
-        return;
-    }
-
-    const SubmitResult result = submit(extension->command);
-    if (result == SubmitResult::Accepted) {
-        if (extension->sender_state != nullptr)
-            extension->sender_state->status = DispatchStatus::Accepted;
-        transaction.set_response_status(tlm::TLM_OK_RESPONSE);
-        return;
-    }
-    if (extension->sender_state != nullptr) {
-        extension->sender_state->status =
-                result == SubmitResult::Backpressured
-                ? DispatchStatus::Backpressured
-                : DispatchStatus::Invalid;
-    }
-    transaction.set_response_status(result == SubmitResult::Backpressured
-                                        ? tlm::TLM_INCOMPLETE_RESPONSE
-                                        : tlm::TLM_COMMAND_ERROR_RESPONSE);
 }
 
 uint64_t
