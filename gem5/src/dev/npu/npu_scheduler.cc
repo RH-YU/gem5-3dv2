@@ -202,6 +202,8 @@ NpuTop::sync_route_engine(const NpuCommand &command) const
       case SyncEndpoint::Mte2: return Engine::Mte2;
       case SyncEndpoint::Vcu: return Engine::Vcu;
       case SyncEndpoint::GmFileIo: return Engine::GmFileIo;
+      case SyncEndpoint::Cpu:
+        throw std::logic_error("CPU sync endpoint is handled before scheduler routing");
     }
     throw std::logic_error("sync endpoint has no scheduler engine");
 }
