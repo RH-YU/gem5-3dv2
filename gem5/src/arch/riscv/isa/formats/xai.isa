@@ -342,28 +342,6 @@ def format XaiMte1Op(mte1_opcode, *flags) {{
     exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
 }};
 
-def format XaiVcuOp(vcu_opcode, *flags) {{
-    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
-    code = '''
-    const uint64_t rd_value = xc->getRegOperand(this, 0);
-    const uint64_t rs1_value = xc->getRegOperand(this, 1);
-    const uint64_t rs2_value = xc->getRegOperand(this, 2);
-    Fault fault = dispatchXaiCommand(
-            xc, machInst, npu_mvp::Opcode::Vcu, rd_value, rs1_value,
-            rs2_value, npu_mvp::Mte4Opcode::GmToUb,
-            npu_mvp::Mte2Opcode::UbToGm, npu_mvp::Mte1Opcode::L1ToGm,
-            %(vcu_opcode)s);
-    if (fault != NoFault)
-        return fault;
-    ''' % { 'vcu_opcode': 'npu_mvp::VcuOpcode::' + vcu_opcode }
-    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
-    iop.padSrcRegIdx(3)
-    header_output = XaiDeclare.subst(iop)
-    decoder_output = XaiConstructor.subst(iop)
-    decode_block = BasicDecode.subst(iop)
-    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
-}};
-
 def format XaiVcuVectorLoadOp(vcu_opcode, *flags) {{
     xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
     code = '''

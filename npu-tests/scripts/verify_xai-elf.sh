@@ -150,7 +150,7 @@ emit_asm()
 usage()
 {
     cat >&2 <<EOF
-Usage: $0 [all|build-gem5|run-vcu-smoke|run-rvv-npu-vcu-smoke|run-multinpu|run-vcu-backpressure|run-cube-smoke]
+Usage: $0 [all|build-gem5|run-rvv-npu-vcu-smoke|run-multinpu|run-rvv-npu-backpressure|run-cube-smoke]
 
 Optional env:
   L1I_HWP_TYPE=<prefetcher>  Enable L1 ICache prefetcher for verify runs.
@@ -475,7 +475,7 @@ generate_vcu_smoke_data()
     rm -f "$gm_file_io_root/xai_result.bin"
 }
 
-run_vcu_smoke_sim()
+run_rvv_npu_vcu_smoke_sim()
 {
     local log_file=$1
     local m5out_dir=$2
@@ -489,14 +489,14 @@ run_vcu_smoke_sim()
         "$gm_file_io_root" "$vcd_base"
 }
 
-check_vcu_smoke_log()
+check_rvv_npu_vcu_smoke_log()
 {
     local log_file=$1
     local vcd_file=$2
     local expected_result_bin=$3
     local actual_result_bin=$4
     local op
-    check_xai_log_common "VCU smoke" "$log_file"
+    check_xai_log_common "RVV NPU VCU smoke" "$log_file"
 
     for op in mte4_gm_to_ub mte2_ub_to_gm vload vstore vadd nsetvl \
         sync_set sync_wait WriteDataToNpu LoadDataFromNpu; do
@@ -546,38 +546,7 @@ check_vcu_smoke_log()
         exit 1
     fi
 
-    check_xai_vcd "VCU smoke" "$vcd_file" 1 "$log_file"
-}
-
-run_vcu_smoke()
-{
-    local vcu_smoke_src="$project_root/npu-tests/baremetal/xai-elf/xai_vcu_smoke.cc"
-    local vcu_smoke_elf="$build_dir/xai_vcu_smoke.elf"
-    local vcu_smoke_asm_file="$build_dir/xai_vcu_smoke.asm"
-    local gem5_output_dir="$build_dir/gem5_output"
-    local vcu_smoke_log="$gem5_output_dir/xai_vcu_smoke.log"
-    local m5out_dir="$gem5_output_dir/m5out"
-    local vcu_smoke_vcd_base="xai_vcu_smoke_npu_trace"
-    local vcu_smoke_vcd_file="$m5out_dir/${vcu_smoke_vcd_base}.vcd"
-    local gm_file_io_root="$build_dir/gm_file_io_vcu_smoke"
-    local data_generator="$project_root/npu-tests/reference/xai-elf/generate_vcu_smoke_data.py"
-    local file_hart_id=0
-    local file_index=0
-    local expected_result_bin="$build_dir/xai_vcu_expected.bin"
-    local actual_result_bin="$gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
-
-    require_single_npu_type "run-vcu-smoke"
-    require_gem5
-    generate_vcu_smoke_data "$data_generator" "$gm_file_io_root" "$file_hart_id" \
-        "$file_index" "$expected_result_bin" "$actual_result_bin"
-    compile_xai_elf "$vcu_smoke_src" "$vcu_smoke_elf" \
-        "$vcu_smoke_asm_file"
-    check_xai_elf "VCU smoke" "$vcu_smoke_elf"
-    run_vcu_smoke_sim "$vcu_smoke_log" "$m5out_dir" "$vcu_smoke_elf" \
-        "$gm_file_io_root" "$vcu_smoke_vcd_base"
-    check_vcu_smoke_log "$vcu_smoke_log" "$vcu_smoke_vcd_file" \
-        "$expected_result_bin" "$actual_result_bin"
-    echo "PASS: Xai VCU smoke ELF completed NPU execution with expected VADD result."
+    check_xai_vcd "RVV NPU VCU smoke" "$vcd_file" 1 "$log_file"
 }
 
 run_rvv_npu_vcu_smoke()
@@ -604,10 +573,10 @@ run_rvv_npu_vcu_smoke()
     compile_xai_elf "$rvv_npu_vcu_smoke_src" "$rvv_npu_vcu_smoke_elf" \
         "$rvv_npu_vcu_smoke_asm_file"
     check_xai_elf "RVV NPU VCU smoke" "$rvv_npu_vcu_smoke_elf"
-    run_vcu_smoke_sim "$rvv_npu_vcu_smoke_log" "$m5out_dir" \
+    run_rvv_npu_vcu_smoke_sim "$rvv_npu_vcu_smoke_log" "$m5out_dir" \
         "$rvv_npu_vcu_smoke_elf" "$gm_file_io_root" \
         "$rvv_npu_vcu_smoke_vcd_base"
-    check_vcu_smoke_log "$rvv_npu_vcu_smoke_log" \
+    check_rvv_npu_vcu_smoke_log "$rvv_npu_vcu_smoke_log" \
         "$rvv_npu_vcu_smoke_vcd_file" "$expected_result_bin" \
         "$actual_result_bin"
     echo "PASS: standard RVV encodings dispatched to NPU VCU with expected VADD result."
@@ -821,7 +790,7 @@ run_cube_smoke()
     echo "PASS: cube smoke completed GM/L1/L0/Cube/Fixpipe/UB/GM flow."
 }
 
-generate_vcu_backpressure_data()
+generate_rvv_npu_backpressure_data()
 {
     local data_generator=$1
     local gm_file_io_root=$2
@@ -844,7 +813,7 @@ generate_vcu_backpressure_data()
     rm -f "$actual_result_bin"
 }
 
-run_vcu_backpressure_sim()
+run_rvv_npu_backpressure_sim()
 {
     local log_file=$1
     local m5out_dir=$2
@@ -858,64 +827,64 @@ run_vcu_backpressure_sim()
         "$gm_file_io_root" "$vcd_base"
 }
 
-check_vcu_backpressure_log()
+check_rvv_npu_backpressure_log()
 {
     local log_file=$1
     local vcd_file=$2
 
-    check_xai_log_common "VCU backpressure" "$log_file"
+    check_xai_log_common "RVV NPU backpressure" "$log_file"
 
     if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_set .* sync_src=2 sync_dst=1 sync_id=2" "$log_file"; then
         cat "$log_file"
-        echo "FAIL: VCU-to-MTE2 sync_set did not complete." >&2
+        echo "FAIL: RVV NPU VCU-to-MTE2 sync_set did not complete." >&2
         exit 1
     fi
 
     if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=sync_wait .* sync_src=2 sync_dst=1 sync_id=2" "$log_file"; then
         cat "$log_file"
-        echo "FAIL: VCU-to-MTE2 sync_wait did not complete." >&2
+        echo "FAIL: RVV NPU VCU-to-MTE2 sync_wait did not complete." >&2
         exit 1
     fi
 
-    check_xai_vcd "VCU backpressure" "$vcd_file" 1 "$log_file"
-    check_vcd_signal_minimum "VCU backpressure" "$vcd_file" \
+    check_xai_vcd "RVV NPU backpressure" "$vcd_file" 1 "$log_file"
+    check_vcd_signal_minimum "RVV NPU backpressure" "$vcd_file" \
         "npu0.vcu.queue_size" 8 "$log_file"
 }
 
-run_vcu_backpressure()
+run_rvv_npu_backpressure()
 {
-    local vcu_backpressure_src="$project_root/npu-tests/baremetal/xai-elf/xai_vcu_backpressure.cc"
-    local vcu_backpressure_elf="$build_dir/xai_vcu_backpressure.elf"
-    local vcu_backpressure_asm_file="$build_dir/xai_vcu_backpressure.asm"
+    local rvv_npu_backpressure_src="$project_root/npu-tests/baremetal/xai-elf/xai_rvv_npu_backpressure.cc"
+    local rvv_npu_backpressure_elf="$build_dir/xai_rvv_npu_backpressure.elf"
+    local rvv_npu_backpressure_asm_file="$build_dir/xai_rvv_npu_backpressure.asm"
     local gem5_output_dir="$build_dir/gem5_output"
-    local vcu_backpressure_log="$gem5_output_dir/xai_vcu_backpressure.log"
-    local vcu_backpressure_m5out_dir="$gem5_output_dir/vcu_backpressure_m5out"
-    local vcu_backpressure_vcd_base="xai_vcu_backpressure_npu_trace"
-    local vcu_backpressure_vcd_file="$vcu_backpressure_m5out_dir/${vcu_backpressure_vcd_base}.vcd"
-    local vcu_backpressure_gm_file_io_root="$build_dir/gm_file_io_vcu_backpressure"
-    local vcu_backpressure_data_generator="$project_root/npu-tests/reference/xai-elf/generate_vcu_backpressure_data.py"
+    local rvv_npu_backpressure_log="$gem5_output_dir/xai_rvv_npu_backpressure.log"
+    local rvv_npu_backpressure_m5out_dir="$gem5_output_dir/rvv_npu_backpressure_m5out"
+    local rvv_npu_backpressure_vcd_base="xai_rvv_npu_backpressure_npu_trace"
+    local rvv_npu_backpressure_vcd_file="$rvv_npu_backpressure_m5out_dir/${rvv_npu_backpressure_vcd_base}.vcd"
+    local rvv_npu_backpressure_gm_file_io_root="$build_dir/gm_file_io_rvv_npu_backpressure"
+    local rvv_npu_backpressure_data_generator="$project_root/npu-tests/reference/xai-elf/generate_rvv_npu_backpressure_data.py"
     local file_hart_id=0
-    local vcu_backpressure_file_index=1
-    local vcu_backpressure_recursive_add_count=16
-    local vcu_backpressure_expected_result_bin="$build_dir/xai_vcu_backpressure_expected.bin"
-    local vcu_backpressure_actual_result_bin="$vcu_backpressure_gm_file_io_root/GMOutputFile_${file_hart_id}_${vcu_backpressure_file_index}.bin"
+    local rvv_npu_backpressure_file_index=1
+    local rvv_npu_backpressure_recursive_add_count=16
+    local rvv_npu_backpressure_expected_result_bin="$build_dir/xai_rvv_npu_backpressure_expected.bin"
+    local rvv_npu_backpressure_actual_result_bin="$rvv_npu_backpressure_gm_file_io_root/GMOutputFile_${file_hart_id}_${rvv_npu_backpressure_file_index}.bin"
 
-    require_single_npu_type "run-vcu-backpressure"
+    require_single_npu_type "run-rvv-npu-backpressure"
     require_gem5
-    generate_vcu_backpressure_data "$vcu_backpressure_data_generator" \
-        "$vcu_backpressure_gm_file_io_root" "$file_hart_id" \
-        "$vcu_backpressure_file_index" "$vcu_backpressure_recursive_add_count" \
-        "$vcu_backpressure_expected_result_bin" \
-        "$vcu_backpressure_actual_result_bin"
-    compile_xai_elf "$vcu_backpressure_src" "$vcu_backpressure_elf" \
-        "$vcu_backpressure_asm_file"
-    check_xai_elf "VCU backpressure" "$vcu_backpressure_elf"
-    run_vcu_backpressure_sim "$vcu_backpressure_log" \
-        "$vcu_backpressure_m5out_dir" "$vcu_backpressure_elf" \
-        "$vcu_backpressure_gm_file_io_root" "$vcu_backpressure_vcd_base"
-    check_vcu_backpressure_log "$vcu_backpressure_log" \
-        "$vcu_backpressure_vcd_file"
-    echo "PASS: recursive VCU vadd flow grew the VCU FIFO."
+    generate_rvv_npu_backpressure_data "$rvv_npu_backpressure_data_generator" \
+        "$rvv_npu_backpressure_gm_file_io_root" "$file_hart_id" \
+        "$rvv_npu_backpressure_file_index" "$rvv_npu_backpressure_recursive_add_count" \
+        "$rvv_npu_backpressure_expected_result_bin" \
+        "$rvv_npu_backpressure_actual_result_bin"
+    compile_xai_elf "$rvv_npu_backpressure_src" "$rvv_npu_backpressure_elf" \
+        "$rvv_npu_backpressure_asm_file"
+    check_xai_elf "RVV NPU backpressure" "$rvv_npu_backpressure_elf"
+    run_rvv_npu_backpressure_sim "$rvv_npu_backpressure_log" \
+        "$rvv_npu_backpressure_m5out_dir" "$rvv_npu_backpressure_elf" \
+        "$rvv_npu_backpressure_gm_file_io_root" "$rvv_npu_backpressure_vcd_base"
+    check_rvv_npu_backpressure_log "$rvv_npu_backpressure_log" \
+        "$rvv_npu_backpressure_vcd_file"
+    echo "PASS: recursive RVV NPU vadd flow grew the VCU FIFO."
 }
 
 phase=${1:-all}
@@ -935,16 +904,13 @@ case "$phase" in
         if is_multi_npu; then
             run_multinpu
         else
-            run_vcu_smoke
+            run_rvv_npu_vcu_smoke
             run_cube_smoke
-            run_vcu_backpressure
+            run_rvv_npu_backpressure
         fi
         ;;
     build-gem5)
         build_gem5
-        ;;
-    run-vcu-smoke)
-        run_vcu_smoke
         ;;
     run-rvv-npu-vcu-smoke)
         run_rvv_npu_vcu_smoke
@@ -955,8 +921,8 @@ case "$phase" in
     run-cube-smoke)
         run_cube_smoke
         ;;
-    run-vcu-backpressure)
-        run_vcu_backpressure
+    run-rvv-npu-backpressure)
+        run_rvv_npu_backpressure
         ;;
     -h|--help|help)
         usage

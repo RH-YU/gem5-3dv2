@@ -20,7 +20,7 @@ def write_u32le(path: Path, values: list[int]) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate recursive VCU add backpressure input and expected data."
+        description="Generate recursive RVV NPU add backpressure input and expected data."
     )
     parser.add_argument("--gm-file-io-root", required=True, type=Path)
     parser.add_argument("--hart-id", required=True, type=parse_integer)

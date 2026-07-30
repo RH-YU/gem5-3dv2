@@ -34,15 +34,6 @@ LoadDataFromNpu(unsigned long bytes, unsigned long npu_src,
 }
 
 inline void
-xai_nsetvl(unsigned long avl, unsigned long eew)
-{
-    asm volatile(".insn r 0x5b, 0x2, 0x00, x0, %0, %1"
-                 :
-                 : "r"(avl), "r"(eew)
-                 : "memory");
-}
-
-inline void
 xai_mte4(unsigned long bytes, unsigned long gm_src, unsigned long ub_dst)
 {
     register unsigned long rlen asm("t0") = bytes;
@@ -67,35 +58,52 @@ xai_mte2(unsigned long bytes, unsigned long ub_src, unsigned long gm_dst)
 }
 
 inline void
-xai_vload_v1(unsigned long ub_src)
+rvv_vsetvli_e32m1(unsigned long avl)
 {
-    asm volatile(".insn r 0x5b, 0x1, 0x00, x1, %0, x0"
+    register unsigned long avl_reg asm("t0") = avl;
+    asm volatile("addi x0, %0, 0\n\t"
+                 ".word 0x0102f057"
                  :
-                 : "r"(ub_src)
+                 : "r"(avl_reg)
                  : "memory");
 }
 
 inline void
-xai_vload_v2(unsigned long ub_src)
+rvv_vle32_v1(unsigned long ub_src)
 {
-    asm volatile(".insn r 0x5b, 0x1, 0x00, x2, %0, x0"
+    register unsigned long base asm("a0") = ub_src;
+    asm volatile("addi x0, %0, 0\n\t"
+                 ".word 0x02056087"
                  :
-                 : "r"(ub_src)
+                 : "r"(base)
                  : "memory");
 }
 
 inline void
-xai_vadd_v3_v1_v2()
+rvv_vle32_v2(unsigned long ub_src)
 {
-    asm volatile(".insn r 0x5b, 0x1, 0x02, x3, x1, x2" ::: "memory");
+    register unsigned long base asm("a0") = ub_src;
+    asm volatile("addi x0, %0, 0\n\t"
+                 ".word 0x02056107"
+                 :
+                 : "r"(base)
+                 : "memory");
 }
 
 inline void
-xai_vstore_v3(unsigned long ub_dst)
+rvv_vadd_v3_v1_v2()
 {
-    asm volatile(".insn r 0x5b, 0x1, 0x01, x0, %0, x3"
+    asm volatile(".word 0x021101d7" ::: "memory");
+}
+
+inline void
+rvv_vse32_v3(unsigned long ub_dst)
+{
+    register unsigned long base asm("a0") = ub_dst;
+    asm volatile("addi x0, %0, 0\n\t"
+                 ".word 0x020561a7"
                  :
-                 : "r"(ub_dst)
+                 : "r"(base)
                  : "memory");
 }
 
@@ -133,16 +141,16 @@ run_all_selected_npus()
     XAI_SYNC_SET(XAI_SYNC_GM_FILE_IO, XAI_SYNC_MTE4, 0);
     XAI_SYNC_WAIT(XAI_SYNC_GM_FILE_IO, XAI_SYNC_MTE4, 0);
 
-    xai_nsetvl(4, 2);
+    rvv_vsetvli_e32m1(4);
     xai_mte4(vector_bytes, gm_input, ub_lhs);
     xai_mte4(vector_bytes, gm_rhs, ub_rhs);
     XAI_SYNC_SET(XAI_SYNC_MTE4, XAI_SYNC_VCU, 1);
     XAI_SYNC_WAIT(XAI_SYNC_MTE4, XAI_SYNC_VCU, 1);
 
-    xai_vload_v1(ub_lhs);
-    xai_vload_v2(ub_rhs);
-    xai_vadd_v3_v1_v2();
-    xai_vstore_v3(ub_result);
+    rvv_vle32_v1(ub_lhs);
+    rvv_vle32_v2(ub_rhs);
+    rvv_vadd_v3_v1_v2();
+    rvv_vse32_v3(ub_result);
     XAI_SYNC_SET(XAI_SYNC_VCU, XAI_SYNC_MTE2, 2);
     XAI_SYNC_WAIT(XAI_SYNC_VCU, XAI_SYNC_MTE2, 2);
 

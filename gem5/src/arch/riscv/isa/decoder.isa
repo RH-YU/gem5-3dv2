@@ -2558,17 +2558,7 @@ decode QUADRANT {
                     0x03: mte2_ub_to_l1(UbToL1);
                 }
             }
-            0x1: decode FUNCT7 {
-                format XaiVcuOp {
-                    0x00: vload(Load);
-                    0x01: vstore(Store);
-                    0x02: xai_vadd_vv(Add);
-                }
-            }
             0x2: decode FUNCT7 {
-                format XaiVcuOp {
-                    0x00: nsetvl(Nsetvl);
-                }
                 format XaiSyncOp {
                     0x01: sync_set(Set);
                     0x02: sync_wait(Wait);

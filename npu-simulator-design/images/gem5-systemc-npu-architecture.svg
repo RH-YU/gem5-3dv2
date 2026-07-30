@@ -42,23 +42,23 @@
 
   <rect class="bg" x="0" y="0" width="1600" height="1000"/>
   <text class="title" x="42" y="48">gem5 + SystemC NPU 当前实现框图</text>
-  <text class="subtitle" x="42" y="76">direct XAI submit, per-NPU scheduler, MTE/VCU/Cube/Fixpipe engines, L1/L0/UB/GM storage, sync token, ReExec backpressure</text>
+  <text class="subtitle" x="42" y="76">direct XAI/RVV NPU submit, per-NPU scheduler, MTE/VCU/Cube/Fixpipe engines, L1/L0/UB/GM storage, sync token, ReExec backpressure</text>
 
   <rect class="domain" x="40" y="110" width="390" height="760"/>
   <text class="section-title" x="64" y="143">gem5 CPU / ISA / NPU Device</text>
 
   <rect class="box gem5" x="78" y="178" width="314" height="74"/>
   <text class="label" x="102" y="207">Bare-metal RV64 CPU</text>
-  <text class="small" x="102" y="231">runs XAI ELF, retires async NPU commands</text>
+  <text class="small" x="102" y="231">runs XAI + RVV NPU ELF, retires async NPU commands</text>
 
   <rect class="box gem5" x="78" y="286" width="314" height="86"/>
-  <text class="label" x="102" y="316">XAI custom-2 decoder</text>
-  <text class="small" x="102" y="340">decoder.isa + formats/xai.isa</text>
-  <text class="small" x="102" y="360">captures rd/rs1/rs2 GPR values</text>
+  <text class="label" x="102" y="316">XAI + RVV NPU decoders</text>
+  <text class="small" x="102" y="340">decoder.isa + vector/npu</text>
+  <text class="small" x="102" y="360">formats/xai.isa captures GPR values</text>
 
   <rect class="box gem5" x="78" y="406" width="314" height="88"/>
   <text class="label" x="102" y="436">sendXaiCommandDirect()</text>
-  <text class="small" x="102" y="460">submitNpuCommandDirect(base, command)</text>
+  <text class="small" x="102" y="460">submitNpuCommandDirect(command)</text>
   <text class="small" x="102" y="480">Backpressured -> ReExec retry</text>
 
   <rect class="box cluster" x="78" y="528" width="314" height="98"/>
@@ -89,7 +89,7 @@
   <rect class="box sync" x="506" y="424" width="240" height="108"/>
   <text class="label" x="532" y="454">Sync + VCU context</text>
   <text class="small" x="532" y="478">token: src, dst, id</text>
-  <text class="small" x="532" y="500">nsetvl enters VCU FIFO</text>
+  <text class="small" x="532" y="500">vsetvl enters VCU FIFO</text>
   <text class="small" x="532" y="520">updates nvl/eew_bytes</text>
 
   <rect class="box queue" x="806" y="156" width="150" height="56"/>
@@ -106,7 +106,7 @@
 
   <rect class="box queue" x="806" y="384" width="150" height="56"/>
   <text class="label" x="850" y="414">VCU FIFO</text>
-  <text class="tiny" x="820" y="432">nsetvl/vload/vadd</text>
+  <text class="tiny" x="812" y="432">vsetvli/vle32/vadd/vse32</text>
 
   <rect class="box queue" x="806" y="460" width="150" height="56"/>
   <text class="label" x="846" y="490">Cube FIFO</text>
