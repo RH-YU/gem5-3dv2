@@ -13,6 +13,9 @@ riscv_toolchain_root="${RISCV_TOOLCHAIN_ROOT:-$project_root/riscv_bin}"
 riscv_toolchain_bin="${RISCV_TOOLCHAIN_BIN:-}"
 riscv_toolchain_prefix="${RISCV_TOOLCHAIN_PREFIX:-}"
 l1i_hwp_type="${L1I_HWP_TYPE:-}"
+cache_log_enabled="${CACHE_LOG:-0}"
+cache_log_flags="${CACHE_LOG_FLAGS:-SimpleCPU,Cache,CachePort,MSHR}"
+cache_log_file="${CACHE_LOG_FILE:-cache_debug.log}"
 
 toolchain_bin_candidates()
 {
@@ -143,10 +146,13 @@ emit_asm()
 usage()
 {
     cat >&2 <<EOF
-Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure|run-vcu-backpressure-cache-debug|run-cube-smoke]
+Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure|run-cube-smoke]
 
 Optional env:
   L1I_HWP_TYPE=<prefetcher>  Enable L1 ICache prefetcher for verify runs.
+  CACHE_LOG=1                Enable gem5 cache debug log for any run case.
+  CACHE_LOG_FLAGS=<flags>    Debug flags used when CACHE_LOG=1.
+  CACHE_LOG_FILE=<file>      Debug file name under the case m5out directory.
 
 Common prefetcher candidates:
   TaggedPrefetcher, StridePrefetcher, XSStridePrefetcher, XSCompositePrefetcher
@@ -257,14 +263,13 @@ run_xai_sim()
     local gm_root=$5
     local vcd_base=$6
     local npu_count=${7:-}
-    local debug_file=${8:-}
     local dramsim3_output_dir="$build_dir/gem5_output/dramsim3"
 
     local gem5_args=("$gem5_bin")
-    if [[ -n "$debug_file" ]]; then
+    if [[ "$cache_log_enabled" == 1 || "$cache_log_enabled" == true ]]; then
         gem5_args+=(
-            --debug-flags=SimpleCPU,Cache,CachePort,MSHR
-            --debug-file="$debug_file"
+            --debug-flags="$cache_log_flags"
+            --debug-file="$cache_log_file"
         )
     fi
     local sim_args=(
@@ -752,20 +757,6 @@ run_vcu_backpressure_sim()
         "$gm_file_io_root" "$vcd_base"
 }
 
-run_vcu_backpressure_cache_debug_sim()
-{
-    local log_file=$1
-    local m5out_dir=$2
-    local elf_file=$3
-    local gm_file_io_root=$4
-    local vcd_base=$5
-    local vcd_file="$m5out_dir/${vcd_base}.vcd"
-
-    rm -f "$vcd_file" "$m5out_dir/icache_debug.log"
-    run_xai_sim 60 "$log_file" "$m5out_dir" "$elf_file" \
-        "$gm_file_io_root" "$vcd_base" "" "icache_debug.log"
-}
-
 check_vcu_backpressure_log()
 {
     local log_file=$1
@@ -825,40 +816,6 @@ run_vcu_backpressure()
     echo "PASS: recursive VCU vadd flow grew the VCU FIFO."
 }
 
-run_vcu_backpressure_cache_debug()
-{
-    local vcu_backpressure_src="$project_root/npu-tests/baremetal/xai-elf/xai_vcu_backpressure.cc"
-    local vcu_backpressure_elf="$build_dir/xai_vcu_backpressure.elf"
-    local vcu_backpressure_asm_file="$build_dir/xai_vcu_backpressure.asm"
-    local gem5_output_dir="$build_dir/gem5_output"
-    local vcu_backpressure_cache_debug_log="$gem5_output_dir/xai_vcu_backpressure_cache_debug.log"
-    local vcu_backpressure_cache_debug_m5out_dir="$gem5_output_dir/vcu_backpressure_cache_debug_m5out"
-    local vcu_backpressure_vcd_base="xai_vcu_backpressure_npu_trace"
-    local vcu_backpressure_gm_file_io_root="$build_dir/gm_file_io_vcu_backpressure"
-    local vcu_backpressure_data_generator="$project_root/npu-tests/reference/xai-elf/generate_vcu_backpressure_data.py"
-    local file_hart_id=0
-    local vcu_backpressure_file_index=1
-    local vcu_backpressure_recursive_add_count=16
-    local vcu_backpressure_expected_result_bin="$build_dir/xai_vcu_backpressure_expected.bin"
-    local vcu_backpressure_actual_result_bin="$vcu_backpressure_gm_file_io_root/GMOutputFile_${file_hart_id}_${vcu_backpressure_file_index}.bin"
-
-    require_gem5
-    generate_vcu_backpressure_data "$vcu_backpressure_data_generator" \
-        "$vcu_backpressure_gm_file_io_root" "$file_hart_id" \
-        "$vcu_backpressure_file_index" "$vcu_backpressure_recursive_add_count" \
-        "$vcu_backpressure_expected_result_bin" \
-        "$vcu_backpressure_actual_result_bin"
-    compile_xai_elf "$vcu_backpressure_src" "$vcu_backpressure_elf" \
-        "$vcu_backpressure_asm_file"
-    check_xai_elf "VCU backpressure" "$vcu_backpressure_elf"
-    run_vcu_backpressure_cache_debug_sim "$vcu_backpressure_cache_debug_log" \
-        "$vcu_backpressure_cache_debug_m5out_dir" "$vcu_backpressure_elf" \
-        "$vcu_backpressure_gm_file_io_root" "$vcu_backpressure_vcd_base"
-    check_xai_log_common "VCU backpressure cache debug" \
-        "$vcu_backpressure_cache_debug_log"
-    echo "PASS: VCU backpressure cache debug log generated at $vcu_backpressure_cache_debug_m5out_dir/icache_debug.log"
-}
-
 phase=${1:-all}
 if [[ $# -gt 1 ]]; then
     usage
@@ -891,9 +848,6 @@ case "$phase" in
         ;;
     run-vcu-backpressure)
         run_vcu_backpressure
-        ;;
-    run-vcu-backpressure-cache-debug)
-        run_vcu_backpressure_cache_debug
         ;;
     -h|--help|help)
         usage

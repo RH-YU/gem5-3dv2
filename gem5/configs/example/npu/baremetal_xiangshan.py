@@ -19,7 +19,6 @@ from common import MemConfig
 from common import Simulation
 from common.Benchmarks import SysConfig
 from common.FSConfig import makeBareMetalXiangshanSystem
-from common.PrefetcherConfig import create_prefetcher
 from common.xiangshan import _finish_xiangshan_system, get_xiangshan_cpu_class
 
 
@@ -142,19 +141,7 @@ def cpu_cycle_ticks_from_clock(clock):
     return max(1, int(round(GEM5_TICKS_PER_SECOND / frequency_hz)))
 
 
-def create_l1i_prefetcher(cpu, args):
-    if args.no_pf or args.l1i_hwp_type is None:
-        return NULL
-
-    prefetcher = create_prefetcher(cpu, "l1i", args)
-    prefetcher.on_inst = True
-    prefetcher.on_data = False
-    prefetcher.on_read = True
-    prefetcher.on_write = False
-    return prefetcher
-
-
-def attach_private_l1_caches(cpu, membus, args):
+def attach_private_l1_caches(cpu, membus):
     cpu.addPrivateSplitL1Caches(
         Cache(
             size="16kB",
@@ -165,7 +152,6 @@ def attach_private_l1_caches(cpu, membus, args):
             mshrs=4,
             tgts_per_mshr=8,
             is_read_only=True,
-            prefetcher=create_l1i_prefetcher(cpu, args),
         ),
         Cache(
             size="16kB",
@@ -209,7 +195,7 @@ def finish_in_order_baremetal_system(args, system, cpu_class, ruby):
         cpu.mmu.functional = args.functional_tlb
         cpu.createThreads()
         cpu.createInterruptController()
-        attach_private_l1_caches(cpu, system.membus, args)
+        attach_private_l1_caches(cpu, system.membus)
         print("Create threads for NPU bare-metal CPU ({})".format(type(cpu)))
 
     MemConfig.config_mem(args, system)
