@@ -88,7 +88,7 @@ class ISA : public BaseISA
     std::vector<int8_t> matrixTileB;
     std::vector<int32_t> matrixAcc;
     std::vector<RegVal> matrixTokens;
-    Addr npuCommandBase = 0;
+    uint64_t npuDispatchTargetId = 0;
 
     RegVal &
     matrixToken(size_t idx);
@@ -141,7 +141,7 @@ class ISA : public BaseISA
     uint32_t getMatrixTileM() const { return matrixTileM; }
     uint32_t getMatrixTileK() const { return matrixTileK; }
     uint32_t getMatrixTileN() const { return matrixTileN; }
-    Addr npuCmdBase() const { return npuCommandBase; }
+    uint64_t npuDispatchId() const { return npuDispatchTargetId; }
     Fault matrixLoadA8(ExecContext *xc, Addr base, Addr stride);
     Fault matrixLoadB8(ExecContext *xc, Addr base, Addr stride);
     Fault matrixLoadC32(ExecContext *xc, Addr base, Addr stride);

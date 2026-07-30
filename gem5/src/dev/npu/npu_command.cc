@@ -10,35 +10,37 @@ namespace npu_mvp
 namespace
 {
 
-std::map<gem5::Addr, NpuCommandTarget *> command_targets;
+std::map<uint64_t, NpuCommandTarget *> command_targets;
 
 } // anonymous namespace
 
 void
-registerNpuCommandTarget(gem5::Addr command_base, NpuCommandTarget &target)
+registerNpuCommandTarget(uint64_t dispatch_id, NpuCommandTarget &target)
 {
-    panic_if(command_base == 0, "NPU command target requires a non-zero base.");
-    auto [it, inserted] = command_targets.emplace(command_base, &target);
+    panic_if(dispatch_id == 0, "NPU command target requires a non-zero dispatch id.");
+    auto [it, inserted] = command_targets.emplace(dispatch_id, &target);
     panic_if(!inserted && it->second != &target,
-             "Duplicate NPU command target at %#x.", command_base);
+             "Duplicate NPU command target id %llu.",
+             static_cast<unsigned long long>(dispatch_id));
 }
 
 void
-unregisterNpuCommandTarget(gem5::Addr command_base, NpuCommandTarget &target)
+unregisterNpuCommandTarget(uint64_t dispatch_id, NpuCommandTarget &target)
 {
-    auto it = command_targets.find(command_base);
+    auto it = command_targets.find(dispatch_id);
     if (it == command_targets.end())
         return;
 
     panic_if(it->second != &target,
-             "NPU command target unregister mismatch at %#x.", command_base);
+             "NPU command target unregister mismatch at id %llu.",
+             static_cast<unsigned long long>(dispatch_id));
     command_targets.erase(it);
 }
 
 DispatchStatus
-submitNpuCommandDirect(gem5::Addr command_base, const NpuCommand &command)
+submitNpuCommandDirect(uint64_t dispatch_id, const NpuCommand &command)
 {
-    auto it = command_targets.find(command_base);
+    auto it = command_targets.find(dispatch_id);
     if (it == command_targets.end())
         return DispatchStatus::Invalid;
 

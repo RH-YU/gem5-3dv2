@@ -317,7 +317,7 @@ matrixWriteBlob(ThreadContext *tc, Addr addr, const void *src, size_t size)
 
 
 
-ISA::ISA(const Params &p) : BaseISA(p), npuCommandBase(p.npu_cmd_base)
+ISA::ISA(const Params &p) : BaseISA(p), npuDispatchTargetId(p.npu_dispatch_id)
 {
     _regClasses.emplace_back(IntRegClass, int_reg::NumRegs, debug::IntRegs, sizeof(RegVal));
     _regClasses.emplace_back(FloatRegClass, float_reg::NumRegs, debug::FloatRegs, sizeof(RegVal));

@@ -145,7 +145,7 @@ struct VcuContext
 struct NpuConfig
 {
     uint8_t npu_id = 0;
-    uint64_t npu_command_base = 0;
+    uint64_t npu_dispatch_id = 0;
     uint64_t gm_phys_base = 0x0000000000000000ULL;
     uint64_t gm_size = 2ULL * 1024ULL * 1024ULL * 1024ULL;
     uint64_t gm_page_size = 4096;

@@ -45,7 +45,7 @@ class RiscvISA(BaseISA):
     type = 'RiscvISA'
     cxx_class = 'gem5::RiscvISA::ISA'
     cxx_header = "arch/riscv/isa.hh"
-    npu_cmd_base = Param.Addr(
-        0x20000000,
-        "CPU physical base address used by RISC-V Xai NPU command dispatch.",
+    npu_dispatch_id = Param.UInt64(
+        1,
+        "Direct-dispatch target id used by RISC-V Xai NPU commands.",
     )

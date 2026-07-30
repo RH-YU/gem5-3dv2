@@ -20,7 +20,7 @@ npu_mvp::NpuConfig
 make_config(const gem5::NpuClusterParams &params)
 {
     npu_mvp::NpuConfig config;
-    config.npu_command_base = params.npu_command_base;
+    config.npu_dispatch_id = params.npu_dispatch_id;
     config.gm_phys_base = params.gm_phys_base;
     config.gm_size = params.gm_size;
     config.gm_page_size = params.gm_page_size;
@@ -76,7 +76,7 @@ namespace npu_mvp
 NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
                        uint8_t npu_count)
     : sc_core::sc_module(name),
-      command_base(config.npu_command_base),
+      dispatch_id(config.npu_dispatch_id),
       dispatch_delay(config.scheduler_dispatch_delay),
       trace_cycle_ticks(active_cpu_cycle_ticks(config.vcd_trace_cycle_ticks)),
       npu_clock("npu_clock",
@@ -90,8 +90,8 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
     if (npu_count == 0 || npu_count > 4)
         fatal("NpuCluster npu_count must be in the range [1, 4].");
 
-    if (command_base != 0)
-        registerNpuCommandTarget(command_base, *this);
+    if (dispatch_id != 0)
+        registerNpuCommandTarget(dispatch_id, *this);
 
     const std::string trace_basename =
             normalize_vcd_trace_basename(config.vcd_trace_file);
@@ -113,8 +113,8 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
 
 NpuCluster::~NpuCluster()
 {
-    if (command_base != 0)
-        unregisterNpuCommandTarget(command_base, *this);
+    if (dispatch_id != 0)
+        unregisterNpuCommandTarget(dispatch_id, *this);
     if (trace_file != nullptr)
         sc_core::sc_close_vcd_trace_file(trace_file);
 }

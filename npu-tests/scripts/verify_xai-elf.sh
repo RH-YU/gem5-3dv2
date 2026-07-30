@@ -16,6 +16,8 @@ l1i_hwp_type="${L1I_HWP_TYPE:-}"
 cache_log_enabled="${CACHE_LOG:-0}"
 cache_log_flags="${CACHE_LOG_FLAGS:-SimpleCPU,Cache,CachePort,MSHR}"
 cache_log_file="${CACHE_LOG_FILE:-cache_debug.log}"
+npu_type="${NPU_TYPE:-single}"
+multi_npu_count="${MULTI_NPU_COUNT:-4}"
 
 toolchain_bin_candidates()
 {
@@ -153,6 +155,9 @@ Optional env:
   CACHE_LOG=1                Enable gem5 cache debug log for any run case.
   CACHE_LOG_FLAGS=<flags>    Debug flags used when CACHE_LOG=1.
   CACHE_LOG_FILE=<file>      Debug file name under the case m5out directory.
+  NPU_TYPE=single|multi      Select single-NPU or multi-NPU simulation.
+                             run-multinpu requires NPU_TYPE=multi.
+  MULTI_NPU_COUNT=<count>    NPU count in one cluster when NPU_TYPE=multi.
 
 Common prefetcher candidates:
   TaggedPrefetcher, StridePrefetcher, XSStridePrefetcher, XSCompositePrefetcher
@@ -160,6 +165,61 @@ Common prefetcher candidates:
 List supported types:
   $gem5_bin $gem5_config --list-hwp-types
 EOF
+}
+
+is_multi_npu()
+{
+    [[ "$npu_type" == multi ]]
+}
+
+selected_npu_count()
+{
+    if is_multi_npu; then
+        printf '%s\n' "$multi_npu_count"
+    else
+        printf '%s\n' 1
+    fi
+}
+
+validate_npu_selection()
+{
+    case "$npu_type" in
+        single|multi)
+            ;;
+        *)
+            echo "FAIL: NPU_TYPE must be 'single' or 'multi'; got '$npu_type'." >&2
+            exit 2
+            ;;
+    esac
+
+    if is_multi_npu; then
+        if ! [[ "$multi_npu_count" =~ ^[0-9]+$ ]]; then
+            echo "FAIL: MULTI_NPU_COUNT must be an integer; got '$multi_npu_count'." >&2
+            exit 2
+        fi
+        if (( multi_npu_count < 2 || multi_npu_count > 4 )); then
+            echo "FAIL: MULTI_NPU_COUNT must be in the range [2, 4]." >&2
+            exit 2
+        fi
+    fi
+}
+
+require_single_npu_type()
+{
+    local label=$1
+    if is_multi_npu; then
+        echo "FAIL: $label is a single-NPU case; use NPU_TYPE=single." >&2
+        exit 2
+    fi
+}
+
+require_multi_npu_type()
+{
+    local label=$1
+    if ! is_multi_npu; then
+        echo "FAIL: $label requires NPU_TYPE=multi." >&2
+        exit 2
+    fi
 }
 
 check_host()
@@ -262,7 +322,8 @@ run_xai_sim()
     local elf_file=$4
     local gm_root=$5
     local vcd_base=$6
-    local npu_count=${7:-}
+    local npu_count
+    npu_count=$(selected_npu_count)
     local dramsim3_output_dir="$build_dir/gem5_output/dramsim3"
 
     local gem5_args=("$gem5_bin")
@@ -278,9 +339,7 @@ run_xai_sim()
         --baremetal-bin "$elf_file"
         --enable-npu
     )
-    if [[ -n "$npu_count" ]]; then
-        sim_args+=(--npu-count "$npu_count")
-    fi
+    sim_args+=(--npu-count "$npu_count")
     if [[ -n "$l1i_hwp_type" ]]; then
         sim_args+=(--l1i-hwp-type "$l1i_hwp_type")
     fi
@@ -288,11 +347,10 @@ run_xai_sim()
         --npu-enable-sim-gm-file-io
         --npu-sim-gm-file-io-root "$gm_root"
         --dramsim3-output-dir "$dramsim3_output_dir"
-        --npu-cmd-base 0x20000000
-        --npu-cmd-size 0x1000
+        --npu-dispatch-id 1
         --npu-vcd-trace-file "$vcd_base"
     )
-    if [[ -n "$npu_count" ]]; then
+    if is_multi_npu; then
         sim_args+=(--num-cpus 1)
     fi
     sim_args+=(--mem-size 2GB)
@@ -501,6 +559,7 @@ run_smoke()
     local expected_result_bin="$build_dir/xai_expected.bin"
     local actual_result_bin="$gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
 
+    require_single_npu_type "run-smoke"
     require_gem5
     generate_smoke_data "$data_generator" "$gm_file_io_root" "$file_hart_id" \
         "$file_index" "$expected_result_bin" "$actual_result_bin"
@@ -540,12 +599,11 @@ run_multinpu_sim()
     local elf_file=$3
     local gm_file_io_root=$4
     local vcd_base=$5
-    local npu_count=$6
     local vcd_file="$m5out_dir/${vcd_base}.vcd"
 
     rm -f "$vcd_file"
     run_xai_sim 45 "$log_file" "$m5out_dir" "$elf_file" \
-        "$gm_file_io_root" "$vcd_base" "$npu_count"
+        "$gm_file_io_root" "$vcd_base"
 }
 
 check_multinpu_log()
@@ -601,16 +659,17 @@ run_multinpu()
     local multinpu_gm_file_io_root="$build_dir/gm_file_io_multinpu"
     local multinpu_expected_root="$build_dir/multinpu_expected"
     local multinpu_data_generator="$project_root/npu-tests/reference/xai-elf/generate_multinpu_smoke_data.py"
-    local npu_count=4
+    local npu_count
+    npu_count=$(selected_npu_count)
 
+    require_multi_npu_type "run-multinpu"
     require_gem5
     generate_multinpu_data "$multinpu_data_generator" \
         "$multinpu_gm_file_io_root" "$multinpu_expected_root" "$npu_count"
     compile_xai_elf "$multinpu_src" "$multinpu_elf" "$multinpu_asm_file"
     check_xai_elf "multi-NPU" "$multinpu_elf"
     run_multinpu_sim "$multinpu_log" "$multinpu_m5out_dir" \
-        "$multinpu_elf" "$multinpu_gm_file_io_root" "$multinpu_vcd_base" \
-        "$npu_count"
+        "$multinpu_elf" "$multinpu_gm_file_io_root" "$multinpu_vcd_base"
     check_multinpu_log "$multinpu_log" "$multinpu_vcd_file" \
         "$multinpu_gm_file_io_root" "$multinpu_expected_root" "$npu_count"
     echo "PASS: single-CPU multi-NPU Xai flow completed with distinct per-NPU GM results."
@@ -705,6 +764,7 @@ run_cube_smoke()
     local cube_smoke_expected_result_bin="$build_dir/xai_cube_smoke_expected.bin"
     local cube_smoke_actual_result_bin="$cube_smoke_gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
 
+    require_single_npu_type "run-cube-smoke"
     require_gem5
     generate_cube_smoke_data "$cube_smoke_data_generator" \
         "$cube_smoke_gm_file_io_root" "$file_hart_id" "$file_index" \
@@ -799,6 +859,7 @@ run_vcu_backpressure()
     local vcu_backpressure_expected_result_bin="$build_dir/xai_vcu_backpressure_expected.bin"
     local vcu_backpressure_actual_result_bin="$vcu_backpressure_gm_file_io_root/GMOutputFile_${file_hart_id}_${vcu_backpressure_file_index}.bin"
 
+    require_single_npu_type "run-vcu-backpressure"
     require_gem5
     generate_vcu_backpressure_data "$vcu_backpressure_data_generator" \
         "$vcu_backpressure_gm_file_io_root" "$file_hart_id" \
@@ -823,16 +884,20 @@ if [[ $# -gt 1 ]]; then
 fi
 
 check_host
+validate_npu_selection
 cd "$project_root"
 mkdir -p "$build_dir"
 
 case "$phase" in
     all)
         build_gem5
-        run_smoke
-        run_multinpu
-        run_cube_smoke
-        run_vcu_backpressure
+        if is_multi_npu; then
+            run_multinpu
+        else
+            run_smoke
+            run_cube_smoke
+            run_vcu_backpressure
+        fi
         ;;
     build-gem5)
         build_gem5

@@ -75,16 +75,16 @@ Build with in-tree SystemC enabled:
 scons build/RISCV/gem5.opt USE_SYSTEMC=1 RUBY=False USE_KVM=False BUILD_GPU=False --linker=gold -j$(nproc)
 ```
 
-Run a bare-metal ELF with the NPU command aperture attached to the system bus:
+Run a bare-metal ELF with direct Xai instruction dispatch to the NPU:
 
 ```sh
 ./build/RISCV/gem5.opt \
   configs/example/npu/baremetal_xiangshan.py \
   --baremetal-bin /path/to/program.elf \
   --enable-npu \
-  --npu-cmd-base 0x20000000 \
-  --npu-cmd-size 0x1000
+  --npu-dispatch-id 1
 ```
 
-This maps only the CPU-visible command aperture. NPU GM and UB remain private
-SystemC storage and are not added to the CPU memory map.
+The dispatch id binds Xai instructions executed by the CPU to the registered
+SystemC NPU cluster. NPU GM and UB remain private SystemC storage and are not
+added to the CPU memory map.

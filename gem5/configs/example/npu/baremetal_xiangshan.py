@@ -44,23 +44,18 @@ def add_local_options(parser):
     parser.add_argument(
         "--enable-npu",
         action="store_true",
-        help="Attach the SystemC NPU command aperture to the system bus.",
+        help="Enable direct Xai instruction dispatch to the SystemC NPU.",
     )
     parser.add_argument(
-        "--npu-cmd-base",
-        default="0x20000000",
-        help="CPU physical base address of the NPU command aperture.",
-    )
-    parser.add_argument(
-        "--npu-cmd-size",
-        default="0x1000",
-        help="Byte size of the NPU command aperture.",
+        "--npu-dispatch-id",
+        default="1",
+        help="Direct-dispatch target id used to bind Xai instructions to the NPU.",
     )
     parser.add_argument(
         "--npu-count",
         type=int,
         default=1,
-        help="Number of NPU instances behind the broadcast command aperture.",
+        help="Number of NPU instances behind the direct-dispatch target.",
     )
     parser.add_argument(
         "--npu-enable-sim-gm-file-io",
@@ -252,21 +247,20 @@ def attach_npu(system, args):
     if not hasattr(system, "membus"):
         fatal("NPU attachment requires system.membus.")
 
-    cmd_base = int(args.npu_cmd_base, 0)
-    cmd_size = int(args.npu_cmd_size, 0)
-    if cmd_size <= 0:
-        fatal("--npu-cmd-size must be positive.")
+    dispatch_id = int(args.npu_dispatch_id, 0)
+    if dispatch_id <= 0:
+        fatal("--npu-dispatch-id must be positive.")
     if args.npu_count <= 0 or args.npu_count > 4:
         fatal("--npu-count must be in the range [1, 4].")
 
     for cpu in system.cpu:
         for isa in cpu.isa:
-            isa.npu_cmd_base = cmd_base
+            isa.npu_dispatch_id = dispatch_id
 
     cpu_cycle_ticks = cpu_cycle_ticks_from_clock(args.cpu_clock)
 
     system.npu = NpuCluster(
-        npu_command_base=cmd_base,
+        npu_dispatch_id=dispatch_id,
         npu_count=args.npu_count,
         enable_sim_gm_file_io=args.npu_enable_sim_gm_file_io,
         sim_gm_file_io_root=args.npu_sim_gm_file_io_root,

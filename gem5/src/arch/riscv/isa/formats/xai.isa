@@ -83,7 +83,7 @@ sendXaiCommandDirect(ExecContext *xc, const npu_mvp::NpuCommand &command)
     panic_if(isa == nullptr, "Xai dispatch requires a RISC-V ISA object.");
 
     const auto dispatch_status =
-            npu_mvp::submitNpuCommandDirect(isa->npuCmdBase(), command);
+            npu_mvp::submitNpuCommandDirect(isa->npuDispatchId(), command);
     if (dispatch_status == npu_mvp::DispatchStatus::Backpressured)
         return std::make_shared<ReExec>();
     if (dispatch_status == npu_mvp::DispatchStatus::Invalid) {

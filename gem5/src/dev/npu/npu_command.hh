@@ -3,6 +3,8 @@
 #include "dev/npu/npu_types.hh"
 #include "base/types.hh"
 
+#include <cstdint>
+
 namespace npu_mvp
 {
 
@@ -13,11 +15,11 @@ class NpuCommandTarget
     virtual DispatchStatus submitNpuCommand(const NpuCommand &command) = 0;
 };
 
-void registerNpuCommandTarget(gem5::Addr command_base,
+void registerNpuCommandTarget(uint64_t dispatch_id,
                               NpuCommandTarget &target);
-void unregisterNpuCommandTarget(gem5::Addr command_base,
+void unregisterNpuCommandTarget(uint64_t dispatch_id,
                                 NpuCommandTarget &target);
-DispatchStatus submitNpuCommandDirect(gem5::Addr command_base,
+DispatchStatus submitNpuCommandDirect(uint64_t dispatch_id,
                                       const NpuCommand &command);
 
 } // namespace npu_mvp

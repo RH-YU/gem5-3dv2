@@ -36,7 +36,7 @@ class NpuCluster : public sc_core::sc_module, public NpuCommandTarget
                                     uint8_t npu_id, uint8_t npu_count);
     DispatchStatus submit_cpu_sync(const NpuCommand &command);
 
-    gem5::Addr command_base = 0;
+    uint64_t dispatch_id = 0;
     sc_core::sc_time dispatch_delay;
     sc_core::sc_trace_file *trace_file = nullptr;
     uint64_t trace_cycle_ticks = 0;
