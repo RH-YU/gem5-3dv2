@@ -14,9 +14,9 @@ NpuTop::mte2_thread()
         while (!mte2.queue.empty()) {
             ScheduledCommand command = std::move(mte2.queue.front());
             mte2.queue.pop_front();
-            trace_queue_sizes();
+            mte2.trace.trace_queue_size(mte2.queue.size());
             mte2.busy = true;
-            trace_engine_start(Engine::Mte2, command.command.raw_instruction);
+            mte2.trace.trace_start(command.command.raw_instruction);
             if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
             } else {
@@ -30,6 +30,7 @@ NpuTop::mte2_thread()
                 }
             }
             mte2.busy = false;
+            mte2.trace.trace_done();
             complete(command, Engine::Mte2);
         }
     }

@@ -7,6 +7,52 @@ namespace npu_mvp
 {
 
 void
+VcuTraceState::register_trace(sc_core::sc_trace_file *tf,
+                              const std::string &scope)
+{
+    trace_file = tf;
+    if (trace_file == nullptr)
+        return;
+
+    sc_core::sc_trace(trace_file, signals.start_event, scope + ".start_event");
+    sc_core::sc_trace(trace_file, signals.done_event, scope + ".done_event");
+    sc_core::sc_trace(trace_file, signals.busy, scope + ".busy");
+    sc_core::sc_trace(trace_file, signals.queue_size, scope + ".queue_size");
+    sc_core::sc_trace(trace_file, signals.instruction, scope + ".instruction");
+}
+
+void
+VcuTraceState::trace_start(uint32_t raw_instruction)
+{
+    if (trace_file == nullptr)
+        return;
+
+    signals.start_event = !signals.start_event;
+    signals.busy = true;
+    signals.instruction = raw_instruction;
+}
+
+void
+VcuTraceState::trace_done()
+{
+    if (trace_file == nullptr)
+        return;
+
+    signals.done_event = !signals.done_event;
+    signals.busy = false;
+    signals.instruction = 0;
+}
+
+void
+VcuTraceState::trace_queue_size(std::size_t queue_size)
+{
+    if (trace_file == nullptr)
+        return;
+
+    signals.queue_size = static_cast<uint32_t>(queue_size);
+}
+
+void
 NpuTop::execute_vcu_nsetvl(const ScheduledCommand &command)
 {
     auto &context = vcu_context_for(command.command.hart_id);
@@ -53,9 +99,9 @@ NpuTop::vcu_thread()
         while (!vcu.queue.empty()) {
             ScheduledCommand command = std::move(vcu.queue.front());
             vcu.queue.pop_front();
-            trace_queue_sizes();
+            vcu.trace.trace_queue_size(vcu.queue.size());
             vcu.busy = true;
-            trace_engine_start(Engine::Vcu, command.command.raw_instruction);
+            vcu.trace.trace_start(command.command.raw_instruction);
             if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
             } else if (as_vcu_opcode(command.command) == VcuOpcode::Nsetvl) {
@@ -78,6 +124,7 @@ NpuTop::vcu_thread()
                 }
             }
             vcu.busy = false;
+            vcu.trace.trace_done();
             complete(command, Engine::Vcu);
         }
     }

@@ -14,9 +14,9 @@ NpuTop::mte4_thread()
         while (!mte4.queue.empty()) {
             ScheduledCommand command = std::move(mte4.queue.front());
             mte4.queue.pop_front();
-            trace_queue_sizes();
+            mte4.trace.trace_queue_size(mte4.queue.size());
             mte4.busy = true;
-            trace_engine_start(Engine::Mte4, command.command.raw_instruction);
+            mte4.trace.trace_start(command.command.raw_instruction);
             if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
             } else {
@@ -30,6 +30,7 @@ NpuTop::mte4_thread()
                 }
             }
             mte4.busy = false;
+            mte4.trace.trace_done();
             complete(command, Engine::Mte4);
         }
     }

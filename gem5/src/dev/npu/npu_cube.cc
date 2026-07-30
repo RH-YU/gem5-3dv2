@@ -10,6 +10,52 @@
 namespace npu_mvp
 {
 
+void
+CubeTraceState::register_trace(sc_core::sc_trace_file *tf,
+                               const std::string &scope)
+{
+    trace_file = tf;
+    if (trace_file == nullptr)
+        return;
+
+    sc_core::sc_trace(trace_file, signals.start_event, scope + ".start_event");
+    sc_core::sc_trace(trace_file, signals.done_event, scope + ".done_event");
+    sc_core::sc_trace(trace_file, signals.busy, scope + ".busy");
+    sc_core::sc_trace(trace_file, signals.queue_size, scope + ".queue_size");
+    sc_core::sc_trace(trace_file, signals.instruction, scope + ".instruction");
+}
+
+void
+CubeTraceState::trace_start(uint32_t raw_instruction)
+{
+    if (trace_file == nullptr)
+        return;
+
+    signals.start_event = !signals.start_event;
+    signals.busy = true;
+    signals.instruction = raw_instruction;
+}
+
+void
+CubeTraceState::trace_done()
+{
+    if (trace_file == nullptr)
+        return;
+
+    signals.done_event = !signals.done_event;
+    signals.busy = false;
+    signals.instruction = 0;
+}
+
+void
+CubeTraceState::trace_queue_size(std::size_t queue_size)
+{
+    if (trace_file == nullptr)
+        return;
+
+    signals.queue_size = static_cast<uint32_t>(queue_size);
+}
+
 namespace
 {
 
@@ -76,9 +122,9 @@ NpuTop::cube_thread()
         while (!cube.queue.empty()) {
             ScheduledCommand command = std::move(cube.queue.front());
             cube.queue.pop_front();
-            trace_queue_sizes();
+            cube.trace.trace_queue_size(cube.queue.size());
             cube.busy = true;
-            trace_engine_start(Engine::Cube, command.command.raw_instruction);
+            cube.trace.trace_start(command.command.raw_instruction);
             if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
             } else {
@@ -91,6 +137,7 @@ NpuTop::cube_thread()
                 }
             }
             cube.busy = false;
+            cube.trace.trace_done();
             complete(command, Engine::Cube);
         }
     }

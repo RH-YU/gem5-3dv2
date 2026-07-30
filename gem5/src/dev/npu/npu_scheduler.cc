@@ -109,7 +109,7 @@ NpuTop::dispatch_ingress()
         if (!dispatch_one(scheduler.ingress_queue.front()))
             return;
         scheduler.ingress_queue.pop_front();
-        trace_queue_sizes();
+        trace_scheduler_queue_size();
     }
 }
 
@@ -143,37 +143,37 @@ NpuTop::enqueue_scheduled(Engine engine, ScheduledCommand &&scheduled)
     switch (engine) {
       case Engine::Mte4:
         mte4.queue.push_back(std::move(scheduled));
-        trace_queue_sizes();
+        mte4.trace.trace_queue_size(mte4.queue.size());
         mte4.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::Mte1:
         mte1.queue.push_back(std::move(scheduled));
-        trace_queue_sizes();
+        mte1.trace.trace_queue_size(mte1.queue.size());
         mte1.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::Mte2:
         mte2.queue.push_back(std::move(scheduled));
-        trace_queue_sizes();
+        mte2.trace.trace_queue_size(mte2.queue.size());
         mte2.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::Vcu:
         vcu.queue.push_back(std::move(scheduled));
-        trace_queue_sizes();
+        vcu.trace.trace_queue_size(vcu.queue.size());
         vcu.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::Cube:
         cube.queue.push_back(std::move(scheduled));
-        trace_queue_sizes();
+        cube.trace.trace_queue_size(cube.queue.size());
         cube.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::Fixpipe:
         fixpipe.queue.push_back(std::move(scheduled));
-        trace_queue_sizes();
+        fixpipe.trace.trace_queue_size(fixpipe.queue.size());
         fixpipe.event.notify(sc_core::SC_ZERO_TIME);
         return true;
       case Engine::GmFileIo:
         gm_file_io.queue.push_back(std::move(scheduled));
-        trace_queue_sizes();
+        gm_file_io.trace.trace_queue_size(gm_file_io.queue.size());
         gm_file_io.event.notify(sc_core::SC_ZERO_TIME);
         return true;
     }
@@ -308,7 +308,6 @@ NpuTop::complete(const ScheduledCommand &command, Engine engine)
     auto &record = scheduler.command_records.at(command.sequence);
     record.engine = engine;
     record.complete = true;
-    trace_engine_done(engine);
     if (!record.faulted)
         trace_command(command.command);
     scheduler.dispatch_event.notify(sc_core::SC_ZERO_TIME);

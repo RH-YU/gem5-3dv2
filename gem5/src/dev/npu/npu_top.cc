@@ -139,7 +139,7 @@ NpuTop::submit(const NpuCommand &command)
     if (!can_accept(command))
         return SubmitResult::Backpressured;
     scheduler.ingress_queue.push_back(command);
-    trace_queue_sizes();
+    trace_scheduler_queue_size();
     trace_ingress();
     scheduler.dispatch_event.notify(sc_core::SC_ZERO_TIME);
     return SubmitResult::Accepted;
@@ -150,6 +150,13 @@ NpuTop::register_trace(sc_core::sc_trace_file *tf, const std::string &scope)
 {
     trace_file = tf;
     register_npu_trace_signals(trace_file, trace_signals, scope);
+    mte4.trace.register_trace(trace_file, scope + ".mte4");
+    mte1.trace.register_trace(trace_file, scope + ".mte1");
+    mte2.trace.register_trace(trace_file, scope + ".mte2");
+    vcu.trace.register_trace(trace_file, scope + ".vcu");
+    cube.trace.register_trace(trace_file, scope + ".cube");
+    fixpipe.trace.register_trace(trace_file, scope + ".fixpipe");
+    gm_file_io.trace.register_trace(trace_file, scope + ".gm_file_io");
 }
 
 uint64_t
@@ -201,102 +208,6 @@ NpuTop::trace_sync_done()
 }
 
 void
-NpuTop::trace_engine_start(Engine engine, uint32_t raw_instruction)
-{
-    if (trace_file == nullptr)
-        return;
-
-    trace_signals.engine_start_event = !trace_signals.engine_start_event;
-    switch (engine) {
-      case Engine::Mte4:
-        trace_signals.mte4_start_event = !trace_signals.mte4_start_event;
-        trace_signals.mte4_busy = true;
-        trace_signals.mte4_instruction = raw_instruction;
-        break;
-      case Engine::Mte1:
-        trace_signals.mte1_start_event = !trace_signals.mte1_start_event;
-        trace_signals.mte1_busy = true;
-        trace_signals.mte1_instruction = raw_instruction;
-        break;
-      case Engine::Mte2:
-        trace_signals.mte2_start_event = !trace_signals.mte2_start_event;
-        trace_signals.mte2_busy = true;
-        trace_signals.mte2_instruction = raw_instruction;
-        break;
-      case Engine::Vcu:
-        trace_signals.vcu_start_event = !trace_signals.vcu_start_event;
-        trace_signals.vcu_busy = true;
-        trace_signals.vcu_instruction = raw_instruction;
-        break;
-      case Engine::Cube:
-        trace_signals.cube_start_event = !trace_signals.cube_start_event;
-        trace_signals.cube_busy = true;
-        trace_signals.cube_instruction = raw_instruction;
-        break;
-      case Engine::Fixpipe:
-        trace_signals.fixpipe_start_event =
-                !trace_signals.fixpipe_start_event;
-        trace_signals.fixpipe_busy = true;
-        trace_signals.fixpipe_instruction = raw_instruction;
-        break;
-      case Engine::GmFileIo:
-        trace_signals.gm_file_io_start_event =
-                !trace_signals.gm_file_io_start_event;
-        trace_signals.gm_file_io_busy = true;
-        trace_signals.gm_file_io_instruction = raw_instruction;
-        break;
-    }
-}
-
-void
-NpuTop::trace_engine_done(Engine engine)
-{
-    if (trace_file == nullptr)
-        return;
-
-    trace_signals.engine_done_event = !trace_signals.engine_done_event;
-    switch (engine) {
-      case Engine::Mte4:
-        trace_signals.mte4_done_event = !trace_signals.mte4_done_event;
-        trace_signals.mte4_busy = false;
-        trace_signals.mte4_instruction = 0;
-        break;
-      case Engine::Mte1:
-        trace_signals.mte1_done_event = !trace_signals.mte1_done_event;
-        trace_signals.mte1_busy = false;
-        trace_signals.mte1_instruction = 0;
-        break;
-      case Engine::Mte2:
-        trace_signals.mte2_done_event = !trace_signals.mte2_done_event;
-        trace_signals.mte2_busy = false;
-        trace_signals.mte2_instruction = 0;
-        break;
-      case Engine::Vcu:
-        trace_signals.vcu_done_event = !trace_signals.vcu_done_event;
-        trace_signals.vcu_busy = false;
-        trace_signals.vcu_instruction = 0;
-        break;
-      case Engine::Cube:
-        trace_signals.cube_done_event = !trace_signals.cube_done_event;
-        trace_signals.cube_busy = false;
-        trace_signals.cube_instruction = 0;
-        break;
-      case Engine::Fixpipe:
-        trace_signals.fixpipe_done_event =
-                !trace_signals.fixpipe_done_event;
-        trace_signals.fixpipe_busy = false;
-        trace_signals.fixpipe_instruction = 0;
-        break;
-      case Engine::GmFileIo:
-        trace_signals.gm_file_io_done_event =
-                !trace_signals.gm_file_io_done_event;
-        trace_signals.gm_file_io_busy = false;
-        trace_signals.gm_file_io_instruction = 0;
-        break;
-    }
-}
-
-void
 NpuTop::trace_fault()
 {
     if (trace_file == nullptr)
@@ -306,22 +217,13 @@ NpuTop::trace_fault()
 }
 
 void
-NpuTop::trace_queue_sizes()
+NpuTop::trace_scheduler_queue_size()
 {
     if (trace_file == nullptr)
         return;
 
     trace_signals.scheduler_queue_size =
             static_cast<uint32_t>(scheduler.ingress_queue.size());
-    trace_signals.mte4_queue_size = static_cast<uint32_t>(mte4.queue.size());
-    trace_signals.mte1_queue_size = static_cast<uint32_t>(mte1.queue.size());
-    trace_signals.mte2_queue_size = static_cast<uint32_t>(mte2.queue.size());
-    trace_signals.vcu_queue_size = static_cast<uint32_t>(vcu.queue.size());
-    trace_signals.cube_queue_size = static_cast<uint32_t>(cube.queue.size());
-    trace_signals.fixpipe_queue_size =
-            static_cast<uint32_t>(fixpipe.queue.size());
-    trace_signals.gm_file_io_queue_size =
-            static_cast<uint32_t>(gm_file_io.queue.size());
 }
 
 void

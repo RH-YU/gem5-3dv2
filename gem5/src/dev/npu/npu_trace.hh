@@ -14,46 +14,9 @@ struct NpuTraceSignals
 {
     bool ingress_event = false;
     bool dispatch_event = false;
-    bool engine_start_event = false;
-    bool engine_done_event = false;
     bool fault_event = false;
     bool sync_event = false;
-    bool mte4_start_event = false;
-    bool mte4_done_event = false;
-    bool mte1_start_event = false;
-    bool mte1_done_event = false;
-    bool mte2_start_event = false;
-    bool mte2_done_event = false;
-    bool vcu_start_event = false;
-    bool vcu_done_event = false;
-    bool cube_start_event = false;
-    bool cube_done_event = false;
-    bool fixpipe_start_event = false;
-    bool fixpipe_done_event = false;
-    bool gm_file_io_start_event = false;
-    bool gm_file_io_done_event = false;
-    bool mte4_busy = false;
-    bool mte1_busy = false;
-    bool mte2_busy = false;
-    bool vcu_busy = false;
-    bool cube_busy = false;
-    bool fixpipe_busy = false;
-    bool gm_file_io_busy = false;
     sc_dt::sc_uint<32> scheduler_queue_size = 0;
-    sc_dt::sc_uint<32> mte4_queue_size = 0;
-    sc_dt::sc_uint<32> mte1_queue_size = 0;
-    sc_dt::sc_uint<32> mte2_queue_size = 0;
-    sc_dt::sc_uint<32> vcu_queue_size = 0;
-    sc_dt::sc_uint<32> cube_queue_size = 0;
-    sc_dt::sc_uint<32> fixpipe_queue_size = 0;
-    sc_dt::sc_uint<32> gm_file_io_queue_size = 0;
-    sc_dt::sc_bv<32> mte4_instruction = sc_dt::sc_bv<32>(0);
-    sc_dt::sc_bv<32> mte1_instruction = sc_dt::sc_bv<32>(0);
-    sc_dt::sc_bv<32> mte2_instruction = sc_dt::sc_bv<32>(0);
-    sc_dt::sc_bv<32> vcu_instruction = sc_dt::sc_bv<32>(0);
-    sc_dt::sc_bv<32> cube_instruction = sc_dt::sc_bv<32>(0);
-    sc_dt::sc_bv<32> fixpipe_instruction = sc_dt::sc_bv<32>(0);
-    sc_dt::sc_bv<32> gm_file_io_instruction = sc_dt::sc_bv<32>(0);
 };
 
 struct NpuClusterTraceSignals

@@ -66,10 +66,8 @@ class NpuTop : public sc_core::sc_module
     void trace_dispatch();
     void trace_sync_start(const NpuCommand &command);
     void trace_sync_done();
-    void trace_engine_start(Engine engine, uint32_t raw_instruction);
-    void trace_engine_done(Engine engine);
     void trace_fault();
-    void trace_queue_sizes();
+    void trace_scheduler_queue_size();
     bool engine_has_space(Engine engine) const;
     Engine sync_route_engine(const NpuCommand &command) const;
     bool sync_complete_for_command(const NpuCommand &command) const;
