@@ -21,7 +21,7 @@ def write_u32le(path: Path, values: list[int]) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate Xai smoke input and expected output binaries."
+        description="Generate Xai VCU smoke input and expected output binaries."
     )
     parser.add_argument(
         "--gm-file-io-root",

@@ -61,7 +61,7 @@ make -j"$(nproc)"
 
 ## 一键构建与验证
 
-构建 `gem5.opt` 并运行 XAI bare-metal smoke 和 multi-NPU 用例：
+构建 `gem5.opt` 并运行 XAI bare-metal VCU smoke 和 multi-NPU 用例：
 
 ```bash
 npu-tests/scripts/verify_xai-elf.sh all
@@ -76,7 +76,7 @@ npu-tests/scripts/verify_xai-elf.sh build-gem5
 只运行测试程序：
 
 ```bash
-npu-tests/scripts/verify_xai-elf.sh run-smoke
+npu-tests/scripts/verify_xai-elf.sh run-vcu-smoke
 npu-tests/scripts/verify_xai-elf.sh run-multinpu
 ```
 

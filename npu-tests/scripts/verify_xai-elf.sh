@@ -149,7 +149,7 @@ emit_asm()
 usage()
 {
     cat >&2 <<EOF
-Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure|run-cube-smoke]
+Usage: $0 [all|build-gem5|run-vcu-smoke|run-multinpu|run-vcu-backpressure|run-cube-smoke]
 
 Optional env:
   L1I_HWP_TYPE=<prefetcher>  Enable L1 ICache prefetcher for verify runs.
@@ -449,7 +449,7 @@ check_vcd_signal_minimum()
     fi
 }
 
-generate_smoke_data()
+generate_vcu_smoke_data()
 {
     local data_generator=$1
     local gm_file_io_root=$2
@@ -472,7 +472,7 @@ generate_smoke_data()
     rm -f "$gm_file_io_root/xai_result.bin"
 }
 
-run_smoke_sim()
+run_vcu_smoke_sim()
 {
     local log_file=$1
     local m5out_dir=$2
@@ -486,14 +486,14 @@ run_smoke_sim()
         "$gm_file_io_root" "$vcd_base"
 }
 
-check_smoke_log()
+check_vcu_smoke_log()
 {
     local log_file=$1
     local vcd_file=$2
     local expected_result_bin=$3
     local actual_result_bin=$4
     local op
-    check_xai_log_common "smoke" "$log_file"
+    check_xai_log_common "VCU smoke" "$log_file"
 
     for op in mte4_gm_to_ub mte2_ub_to_gm vload vstore vadd nsetvl \
         sync_set sync_wait WriteDataToNpu LoadDataFromNpu; do
@@ -543,37 +543,38 @@ check_smoke_log()
         exit 1
     fi
 
-    check_xai_vcd "smoke" "$vcd_file" 1 "$log_file"
+    check_xai_vcd "VCU smoke" "$vcd_file" 1 "$log_file"
 }
 
-run_smoke()
+run_vcu_smoke()
 {
-    local smoke_src="$project_root/npu-tests/baremetal/xai-elf/xai_smoke.cc"
-    local smoke_elf="$build_dir/xai_smoke.elf"
-    local smoke_asm_file="$build_dir/xai_smoke.asm"
+    local vcu_smoke_src="$project_root/npu-tests/baremetal/xai-elf/xai_vcu_smoke.cc"
+    local vcu_smoke_elf="$build_dir/xai_vcu_smoke.elf"
+    local vcu_smoke_asm_file="$build_dir/xai_vcu_smoke.asm"
     local gem5_output_dir="$build_dir/gem5_output"
-    local gem5_log="$gem5_output_dir/xai_smoke.log"
+    local vcu_smoke_log="$gem5_output_dir/xai_vcu_smoke.log"
     local m5out_dir="$gem5_output_dir/m5out"
-    local smoke_vcd_base="xai_smoke_npu_trace"
-    local smoke_vcd_file="$m5out_dir/${smoke_vcd_base}.vcd"
-    local gm_file_io_root="$build_dir/gm_file_io"
-    local data_generator="$project_root/npu-tests/reference/xai-elf/generate_smoke_data.py"
+    local vcu_smoke_vcd_base="xai_vcu_smoke_npu_trace"
+    local vcu_smoke_vcd_file="$m5out_dir/${vcu_smoke_vcd_base}.vcd"
+    local gm_file_io_root="$build_dir/gm_file_io_vcu_smoke"
+    local data_generator="$project_root/npu-tests/reference/xai-elf/generate_vcu_smoke_data.py"
     local file_hart_id=0
     local file_index=0
-    local expected_result_bin="$build_dir/xai_expected.bin"
+    local expected_result_bin="$build_dir/xai_vcu_expected.bin"
     local actual_result_bin="$gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
 
-    require_single_npu_type "run-smoke"
+    require_single_npu_type "run-vcu-smoke"
     require_gem5
-    generate_smoke_data "$data_generator" "$gm_file_io_root" "$file_hart_id" \
+    generate_vcu_smoke_data "$data_generator" "$gm_file_io_root" "$file_hart_id" \
         "$file_index" "$expected_result_bin" "$actual_result_bin"
-    compile_xai_elf "$smoke_src" "$smoke_elf" "$smoke_asm_file"
-    check_xai_elf "smoke" "$smoke_elf"
-    run_smoke_sim "$gem5_log" "$m5out_dir" "$smoke_elf" \
-        "$gm_file_io_root" "$smoke_vcd_base"
-    check_smoke_log "$gem5_log" "$smoke_vcd_file" "$expected_result_bin" \
-        "$actual_result_bin"
-    echo "PASS: Xai full-flow ELF completed NPU execution with expected VADD result."
+    compile_xai_elf "$vcu_smoke_src" "$vcu_smoke_elf" \
+        "$vcu_smoke_asm_file"
+    check_xai_elf "VCU smoke" "$vcu_smoke_elf"
+    run_vcu_smoke_sim "$vcu_smoke_log" "$m5out_dir" "$vcu_smoke_elf" \
+        "$gm_file_io_root" "$vcu_smoke_vcd_base"
+    check_vcu_smoke_log "$vcu_smoke_log" "$vcu_smoke_vcd_file" \
+        "$expected_result_bin" "$actual_result_bin"
+    echo "PASS: Xai VCU smoke ELF completed NPU execution with expected VADD result."
 }
 
 generate_multinpu_data()
@@ -898,7 +899,7 @@ case "$phase" in
         if is_multi_npu; then
             run_multinpu
         else
-            run_smoke
+            run_vcu_smoke
             run_cube_smoke
             run_vcu_backpressure
         fi
@@ -906,8 +907,8 @@ case "$phase" in
     build-gem5)
         build_gem5
         ;;
-    run-smoke)
-        run_smoke
+    run-vcu-smoke)
+        run_vcu_smoke
         ;;
     run-multinpu)
         run_multinpu
