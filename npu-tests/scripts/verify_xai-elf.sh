@@ -18,6 +18,7 @@ cache_log_flags="${CACHE_LOG_FLAGS:-SimpleCPU,Cache,CachePort,MSHR}"
 cache_log_file="${CACHE_LOG_FILE:-cache_debug.log}"
 npu_type="${NPU_TYPE:-single}"
 multi_npu_count="${MULTI_NPU_COUNT:-4}"
+cacheline_size="${CACHELINE_SIZE:-64}"
 
 toolchain_bin_candidates()
 {
@@ -158,6 +159,8 @@ Optional env:
   NPU_TYPE=single|multi      Select single-NPU or multi-NPU simulation.
                              run-multinpu requires NPU_TYPE=multi.
   MULTI_NPU_COUNT=<count>    NPU count in one cluster when NPU_TYPE=multi.
+  CACHELINE_SIZE=<bytes>     Set gem5 --cacheline_size for verify runs.
+                             Defaults to 64.
 
 Common prefetcher candidates:
   TaggedPrefetcher, StridePrefetcher, XSStridePrefetcher, XSCompositePrefetcher
@@ -349,6 +352,7 @@ run_xai_sim()
         --dramsim3-output-dir "$dramsim3_output_dir"
         --npu-dispatch-id 1
         --npu-vcd-trace-file "$vcd_base"
+        --cacheline_size "$cacheline_size"
     )
     if is_multi_npu; then
         sim_args+=(--num-cpus 1)
@@ -491,8 +495,8 @@ check_smoke_log()
     local op
     check_xai_log_common "smoke" "$log_file"
 
-    for op in mte4 mte2 vload vstore vadd nsetvl sync_set sync_wait \
-        WriteDataToNpu LoadDataFromNpu; do
+    for op in mte4_gm_to_ub mte2_ub_to_gm vload vstore vadd nsetvl \
+        sync_set sync_wait WriteDataToNpu LoadDataFromNpu; do
         if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=$op " "$log_file"; then
             cat "$log_file"
             echo "FAIL: Xai operation $op did not reach NPU target." >&2

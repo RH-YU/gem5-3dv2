@@ -199,12 +199,10 @@ NpuTop::route_engine(const NpuCommand &command) const
 void
 NpuTop::trace_command(const NpuCommand &command) const
 {
-    const uint64_t tick = gem5::curTick();
     std::cout << "CPU[" << static_cast<unsigned>(command.hart_id)
               << "]NPU[" << static_cast<unsigned>(config.npu_id)
               << "] : op=" << opcode_name(command)
               << " cycle=" << current_cpu_cycle(config.vcd_trace_cycle_ticks)
-              << " tick=" << tick
               << " opcode=" << static_cast<unsigned>(command.opcode)
               << " subopcode=" << subopcode_value(command)
               << " mask=0x" << std::hex << static_cast<unsigned>(command.npu_mask)

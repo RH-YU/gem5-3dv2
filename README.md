@@ -79,3 +79,24 @@ npu-tests/scripts/verify_xai-elf.sh build-gem5
 npu-tests/scripts/verify_xai-elf.sh run-smoke
 npu-tests/scripts/verify_xai-elf.sh run-multinpu
 ```
+
+## 减少 cache miss 干扰
+
+如果希望减少 icache miss 带来的时延干扰，可以把 cacheline 设置为 2048，表示一次 cache fill 可以向 icache 加载 2KB 指令数据。
+
+通过 verify 脚本运行：
+
+```bash
+CACHELINE_SIZE=2048 npu-tests/scripts/verify_xai-elf.sh run-cube-smoke
+```
+
+直接运行 gem5 时传入：
+
+```bash
+gem5/build/RISCV/gem5.opt \
+    gem5/configs/example/npu/baremetal_xiangshan.py \
+    --baremetal-bin npu-tests/build/xai-elf/xai_cube_smoke.elf \
+    --enable-npu \
+    --npu-enable-sim-gm-file-io \
+    --cacheline_size 2048
+```

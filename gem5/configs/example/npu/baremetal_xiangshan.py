@@ -25,6 +25,10 @@ from common.xiangshan import _finish_xiangshan_system, get_xiangshan_cpu_class
 GEM5_TICKS_PER_SECOND = 1_000_000_000_000
 
 
+def project_root():
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+
 def add_local_options(parser):
     parser.add_argument(
         "--baremetal-bin",
@@ -104,20 +108,29 @@ def set_baremetal_defaults(args):
     args.bp_type = "DecoupledBPUWithBTB"
     args.cpu_type = args.npu_cpu_type
     args.caches = True
-    args.l2cache = True
-    args.l3cache = not args.no_l3cache
-    args.l1_to_l2_pf_hint = True
-    args.l2_to_l3_pf_hint = not args.no_l3cache
 
     if args.mem_type == "DRAMsim3" and args.dramsim3_ini is None:
-        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        args.dramsim3_ini = os.path.join(
-            root_dir,
-            "ext/dramsim3/xiangshan_configs/xiangshan_DDR4_8Gb_x8_3200_2ch.ini",
-        )
+        root_dir = project_root()
+        if args.cacheline_size == 64:
+            args.dramsim3_ini = os.path.join(
+                root_dir,
+                "ext/dramsim3/xiangshan_configs/"
+                "xiangshan_DDR4_8Gb_x8_3200_2ch.ini",
+            )
+        elif args.cacheline_size == 2048:
+            args.dramsim3_ini = os.path.join(
+                root_dir,
+                "ext/dramsim3/npu_configs/npu_DDR4_8Gb_x8_3200_2ch.ini",
+            )
+        else:
+            fatal(
+                "DRAMsim3 default ini only supports cacheline_size 64 or "
+                "2048; got %s",
+                args.cacheline_size,
+            )
 
     if args.mem_type == "Ramulator2" and args.ramulator2_ini is None:
-        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        root_dir = project_root()
         args.ramulator2_ini = os.path.join(
             root_dir, "ext/ramulator2/xs_ramulator_config.yaml"
         )
