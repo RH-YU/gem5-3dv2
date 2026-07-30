@@ -56,7 +56,7 @@ Tagged::calculatePrefetch(const PrefetchInfo &pfi,
 
     for (int d = 1; d <= degree; d++) {
         Addr newAddr = blkAddr + d*(blkSize);
-        addresses.push_back(AddrPriority(newAddr,0));
+        addresses.push_back(AddrPriority(newAddr, 0, PrefetchSourceType::SStream));
     }
 }
 
