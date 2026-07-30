@@ -1,6 +1,6 @@
 # 新增 VCU/Vector 指令说明
 
-本文说明在当前实现中新增一条 VCU/vector 指令需要修改的文件，以及相关结构和函数的作用。
+本文说明在当前实现中，新增一条 VCU/vector 指令需要修改哪些文件，以及相关结构和函数的作用。
 
 ## 当前执行路径
 
@@ -10,16 +10,45 @@
 decoder.isa
   -> XaiVcuOp in formats/xai.isa
   -> buildXaiCommand()
-  -> NpuCommand
+  -> NpuCommand{opcode, subopcode, registers, values, ...}
   -> NpuTop::submit()
+  -> scheduler.ingress_queue
+  -> NpuTop::dispatch_one()
   -> make_vcu_payload()
-  -> vcu_operations descriptor
+  -> ScheduledCommand{sequence, command, context, vcu_payload}
+  -> vcu.queue
   -> NpuTop::vcu_thread()
   -> execute_vcu_operation()
   -> concrete execute_vcu_xxx()
 ```
 
-`nsetvl` 是特殊 VCU 指令，直接更新每个 hart 的 `VcuContext`，不走 `vcu_operations` 表。
+`nsetvl` 是特殊 VCU 指令。它也属于 `Opcode::Vcu`，但不走 `vcu_operations` 表，而是在 VCU thread 中直接更新每个 hart 的 `VcuContext`。
+
+## Opcode 设计
+
+当前 `NpuCommand` 不再保存所有模块的二级 opcode 字段。统一设计是：
+
+```cpp
+struct NpuCommand
+{
+    Opcode opcode = Opcode::Vcu;
+    uint8_t subopcode = static_cast<uint8_t>(VcuOpcode::Nsetvl);
+    ...
+};
+```
+
+含义是：
+
+- `opcode`：一级指令类别，例如 `Vcu`、`Mte4`、`Sync`、`Cube`。
+- `subopcode`：统一的二级 opcode 存储，具体解释方式由 `opcode` 决定。
+
+VCU 模块读取二级 opcode 时使用：
+
+```cpp
+as_vcu_opcode(command)
+```
+
+不要再新增 `NpuCommand::xxx_opcode` 字段。新增 VCU 指令只需要扩展 `VcuOpcode`，并让 decoder 把对应枚举值写入 `subopcode`。
 
 ## 必改文件
 
@@ -87,7 +116,7 @@ execute_vcu_sub(VcuExecutionContext &context, const VcuPayload &payload)
 
 如果新指令和 `vadd` 使用相同吞吐，可以复用 `vadd_elements_per_ns`。如果需要单独吞吐参数，需要额外修改 `Npu.py`、`NpuConfig` 和 `npu_cluster.cc`。
 
-## 可能需要修改的文件
+## 通常不需要修改的文件
 
 ### `gem5/src/arch/riscv/isa/formats/xai.isa`
 
@@ -99,9 +128,33 @@ rs1_value
 rs2_value
 ```
 
-并把 `VcuOpcode` 写入 `NpuCommand`。
+并根据 `Opcode::Vcu` 把 `VcuOpcode` 写入 `NpuCommand::subopcode`。
 
 只有在新指令需要不同 operand 格式、不同寄存器读取方式或立即数字段时，才需要新增 format。
+
+### `gem5/src/dev/npu/npu_scheduler.cc`
+
+通常不需要修改。scheduler 会在 `dispatch_one()` 中统一调用：
+
+```cpp
+const auto vcu_payload = make_vcu_payload(command, context);
+```
+
+只要新指令已经注册到 `vcu_operations` 表，`make_vcu_payload()` 就能构造出对应 payload。
+
+如果希望日志中的 `op=` 显示新名称，也不需要改 scheduler。日志名来自 `VcuOperationDescriptor::name`。
+
+### `gem5/src/dev/npu/npu_vcu.cc`
+
+通常不需要修改。普通 VCU 计算指令都会走：
+
+```cpp
+execute_vcu_operation(context, payload);
+```
+
+只有新增类似 `nsetvl` 这种改变 VCU 上下文、且不适合放入 `vcu_operations` 表的特殊指令时，才需要改 `vcu_thread()`。
+
+## 测试相关文件
 
 ### `npu-tests/baremetal/xai-elf/*.cc`
 
@@ -168,6 +221,24 @@ config.vsub_elements_per_ns = params.vsub_elements_per_ns;
 
 ## 核心结构说明
 
+### `NpuCommand`
+
+定义在 `gem5/src/dev/npu/npu_types.hh`。
+
+`NpuCommand` 是 CPU decode 后提交给 NPU 的通用命令结构。它包含：
+
+- `opcode`：一级模块类型。
+- `subopcode`：统一二级 opcode。VCU 使用 `as_vcu_opcode(command)` 解释。
+- `pc`、`raw_instruction`：用于 trace 和调试。
+- `rd/rs1/rs2`：指令寄存器编号。
+- `rd_value/rs1_value/rs2_value`：CPU 侧读出的寄存器值。
+- `hart_id`：当前 hart，用于索引每个 hart 独立的 VCU context。
+- `npu_mask`：多 NPU 场景下的目标 NPU mask。
+- `sync_src/sync_dst/sync_id`：sync 指令使用。
+- `sim_file_path/storage_physical_address/file_byte_count`：文件 IO 指令使用。
+
+`NpuCommand` 不直接表达某一类 VCU 指令的执行 contract，它只是通用 ISA command。
+
 ### `VcuOperationDescriptor`
 
 定义在 `gem5/src/dev/npu/npu_vcu_operation.hh`。
@@ -185,7 +256,7 @@ struct VcuOperationDescriptor
 
 字段含义：
 
-- `opcode`：VCU 指令枚举，用于从 `NpuCommand::vcu_opcode` 找到对应表项。
+- `opcode`：VCU 指令枚举，用于从 `as_vcu_opcode(command)` 找到对应表项。
 - `name`：日志中显示的 op 名，例如 `vadd`。
 - `work_unit`：计时单位。
   - `VcuWorkUnit::Bytes`：按字节计时，适合 `vload/vstore`。
@@ -216,9 +287,32 @@ struct VcuPayload
 - `destination_register`：目的向量寄存器编号，来自指令 `rd`。
 - `source_register_1`：源寄存器 1，来自指令 `rs1`。
 - `source_register_2`：源寄存器 2，来自指令 `rs2`。
-- `ub_address`：UB 地址，主要给 `vload/vstore` 使用，来自 `rs1_value`。
+- `ub_address`：UB 地址，主要给 `vload/vstore` 使用，来自 `rs1_value`。`vadd` 这类纯寄存器计算指令不会使用它。
 - `nvl`：当前 vector length，来自 `nsetvl` 写入的 `VcuContext`。
 - `eew_bytes`：元素字节数，来自 `nsetvl` 写入的 `VcuContext`。
+
+`VcuPayload` 的作用是把通用 `NpuCommand` 转换成 VCU handler 直接可用的执行参数，并冻结 dispatch 时刻的 `nvl/eew_bytes`。
+
+### `ScheduledCommand`
+
+定义在 `gem5/src/dev/npu/npu_scheduler.hh`。
+
+```cpp
+struct ScheduledCommand
+{
+    uint64_t sequence = 0;
+    NpuCommand command;
+    VcuContext context;
+    std::optional<VcuPayload> vcu_payload;
+};
+```
+
+字段含义：
+
+- `sequence`：scheduler 分配的递增序号，用于完成状态、fault 状态和 sync watermark。
+- `command`：原始 `NpuCommand`。
+- `context`：dispatch 时捕获的 `VcuContext`。
+- `vcu_payload`：普通 VCU 指令的预解析执行描述。非 VCU 指令和 `nsetvl` 通常为空。
 
 ### `VcuExecutionContext`
 
@@ -263,7 +357,7 @@ struct VcuContext
 };
 ```
 
-`nsetvl` 会更新每个 hart 对应的 `VcuContext`。后续 VCU 指令通过它获取 `nvl` 和 `eew_bytes`。
+`nsetvl` 会更新每个 hart 对应的 `VcuContext`。后续 VCU 指令在 dispatch 时从这里捕获 `nvl` 和 `eew_bytes`，并保存到 `VcuPayload`。
 
 ## 核心函数说明
 
@@ -278,12 +372,13 @@ struct VcuContext
 主要映射关系：
 
 ```text
-command.rd        -> destination_register
-command.rs1       -> source_register_1
-command.rs2       -> source_register_2
-command.rs1_value -> ub_address
-context.nvl       -> nvl
-context.eew_bytes -> eew_bytes
+as_vcu_opcode(command) -> operation
+command.rd             -> destination_register
+command.rs1            -> source_register_1
+command.rs2            -> source_register_2
+command.rs1_value      -> ub_address
+context.nvl            -> nvl
+context.eew_bytes      -> eew_bytes
 ```
 
 ### `vcu_payload_byte_count(const NpuConfig &config, const VcuPayload &payload)`
@@ -324,6 +419,7 @@ cd gem5
 scons build/RISCV/dev/npu/npu_vcu_operation.o \
       build/RISCV/dev/npu/npu_vcu.o \
       build/RISCV/dev/npu/npu_scheduler.o \
+      build/RISCV/arch/riscv/generated/decoder.o \
       build/RISCV/arch/riscv/isa.o \
       USE_SYSTEMC=1 RUBY=False USE_KVM=False BUILD_GPU=False --linker=lld -j$(nproc)
 ```
@@ -333,4 +429,3 @@ scons build/RISCV/dev/npu/npu_vcu_operation.o \
 ```bash
 bash -n npu-tests/scripts/verify_xai-elf.sh
 ```
-
