@@ -142,6 +142,18 @@ def cpu_cycle_ticks_from_clock(clock):
     return max(1, int(round(GEM5_TICKS_PER_SECOND / frequency_hz)))
 
 
+def create_l1i_prefetcher(cpu, args):
+    if args.no_pf or args.l1i_hwp_type is None:
+        return NULL
+
+    prefetcher = create_prefetcher(cpu, "l1i", args)
+    prefetcher.on_inst = True
+    prefetcher.on_data = False
+    prefetcher.on_read = True
+    prefetcher.on_write = False
+    return prefetcher
+
+
 def attach_private_l1_caches(cpu, membus, args):
     cpu.addPrivateSplitL1Caches(
         Cache(
@@ -153,8 +165,7 @@ def attach_private_l1_caches(cpu, membus, args):
             mshrs=4,
             tgts_per_mshr=8,
             is_read_only=True,
-            prefetcher=create_prefetcher(cpu, "l1i", args)
-            if not args.no_pf else NULL,
+            prefetcher=create_l1i_prefetcher(cpu, args),
         ),
         Cache(
             size="16kB",
