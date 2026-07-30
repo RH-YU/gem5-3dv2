@@ -19,6 +19,7 @@ cache_log_file="${CACHE_LOG_FILE:-cache_debug.log}"
 npu_type="${NPU_TYPE:-single}"
 multi_npu_count="${MULTI_NPU_COUNT:-4}"
 cacheline_size="${CACHELINE_SIZE:-64}"
+rvv_impl="${RVV_IMPL:-npu}"
 
 toolchain_bin_candidates()
 {
@@ -149,7 +150,7 @@ emit_asm()
 usage()
 {
     cat >&2 <<EOF
-Usage: $0 [all|build-gem5|run-vcu-smoke|run-multinpu|run-vcu-backpressure|run-cube-smoke]
+Usage: $0 [all|build-gem5|run-vcu-smoke|run-rvv-npu-vcu-smoke|run-multinpu|run-vcu-backpressure|run-cube-smoke]
 
 Optional env:
   L1I_HWP_TYPE=<prefetcher>  Enable L1 ICache prefetcher for verify runs.
@@ -161,6 +162,8 @@ Optional env:
   MULTI_NPU_COUNT=<count>    NPU count in one cluster when NPU_TYPE=multi.
   CACHELINE_SIZE=<bytes>     Set gem5 --cacheline_size for verify runs.
                              Defaults to 64.
+  RVV_IMPL=base|simple|npu   Select gem5 RVV decoder implementation when
+                             building gem5. Defaults to npu.
 
 Common prefetcher candidates:
   TaggedPrefetcher, StridePrefetcher, XSStridePrefetcher, XSCompositePrefetcher
@@ -246,11 +249,11 @@ build_gem5()
 {
     local jobs
     jobs=${JOBS:-$(nproc)}
-    echo "+ scons build/RISCV/gem5.opt USE_SYSTEMC=1 RUBY=False USE_KVM=False BUILD_GPU=False --linker=lld -j$jobs"
+    echo "+ scons build/RISCV/gem5.opt --rvv-impl=$rvv_impl USE_SYSTEMC=1 RUBY=False USE_KVM=False BUILD_GPU=False --linker=lld -j$jobs"
     (
         cd "$gem5_root"
-        scons build/RISCV/gem5.opt USE_SYSTEMC=1 RUBY=False USE_KVM=False \
-            BUILD_GPU=False --linker=lld -j"$jobs"
+        scons build/RISCV/gem5.opt --rvv-impl="$rvv_impl" USE_SYSTEMC=1 \
+            RUBY=False USE_KVM=False BUILD_GPU=False --linker=lld -j"$jobs"
     )
     test -x "$gem5_bin"
 }
@@ -575,6 +578,39 @@ run_vcu_smoke()
     check_vcu_smoke_log "$vcu_smoke_log" "$vcu_smoke_vcd_file" \
         "$expected_result_bin" "$actual_result_bin"
     echo "PASS: Xai VCU smoke ELF completed NPU execution with expected VADD result."
+}
+
+run_rvv_npu_vcu_smoke()
+{
+    local rvv_npu_vcu_smoke_src="$project_root/npu-tests/baremetal/xai-elf/xai_rvv_npu_vcu_smoke.cc"
+    local rvv_npu_vcu_smoke_elf="$build_dir/xai_rvv_npu_vcu_smoke.elf"
+    local rvv_npu_vcu_smoke_asm_file="$build_dir/xai_rvv_npu_vcu_smoke.asm"
+    local gem5_output_dir="$build_dir/gem5_output"
+    local rvv_npu_vcu_smoke_log="$gem5_output_dir/xai_rvv_npu_vcu_smoke.log"
+    local m5out_dir="$gem5_output_dir/rvv_npu_vcu_m5out"
+    local rvv_npu_vcu_smoke_vcd_base="xai_rvv_npu_vcu_smoke_npu_trace"
+    local rvv_npu_vcu_smoke_vcd_file="$m5out_dir/${rvv_npu_vcu_smoke_vcd_base}.vcd"
+    local gm_file_io_root="$build_dir/gm_file_io_rvv_npu_vcu_smoke"
+    local data_generator="$project_root/npu-tests/reference/xai-elf/generate_vcu_smoke_data.py"
+    local file_hart_id=0
+    local file_index=0
+    local expected_result_bin="$build_dir/xai_rvv_npu_vcu_expected.bin"
+    local actual_result_bin="$gm_file_io_root/GMOutputFile_${file_hart_id}_${file_index}.bin"
+
+    require_single_npu_type "run-rvv-npu-vcu-smoke"
+    require_gem5
+    generate_vcu_smoke_data "$data_generator" "$gm_file_io_root" "$file_hart_id" \
+        "$file_index" "$expected_result_bin" "$actual_result_bin"
+    compile_xai_elf "$rvv_npu_vcu_smoke_src" "$rvv_npu_vcu_smoke_elf" \
+        "$rvv_npu_vcu_smoke_asm_file"
+    check_xai_elf "RVV NPU VCU smoke" "$rvv_npu_vcu_smoke_elf"
+    run_vcu_smoke_sim "$rvv_npu_vcu_smoke_log" "$m5out_dir" \
+        "$rvv_npu_vcu_smoke_elf" "$gm_file_io_root" \
+        "$rvv_npu_vcu_smoke_vcd_base"
+    check_vcu_smoke_log "$rvv_npu_vcu_smoke_log" \
+        "$rvv_npu_vcu_smoke_vcd_file" "$expected_result_bin" \
+        "$actual_result_bin"
+    echo "PASS: standard RVV encodings dispatched to NPU VCU with expected VADD result."
 }
 
 generate_multinpu_data()
@@ -909,6 +945,9 @@ case "$phase" in
         ;;
     run-vcu-smoke)
         run_vcu_smoke
+        ;;
+    run-rvv-npu-vcu-smoke)
+        run_rvv_npu_vcu_smoke
         ;;
     run-multinpu)
         run_multinpu

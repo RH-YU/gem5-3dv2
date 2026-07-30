@@ -94,6 +94,30 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
     return command;
 }
 
+npu_mvp::NpuCommand
+buildXaiVcuVectorCommand(ExecContext *xc, ExtMachInst mach_inst,
+                         npu_mvp::VcuOpcode vcu_opcode,
+                         uint8_t destination_register,
+                         uint8_t source_register_1,
+                         uint8_t source_register_2,
+                         uint64_t ub_address,
+                         uint64_t avl = 0,
+                         uint64_t eew_encoding = 0)
+{
+    auto command = buildXaiCommand(
+            xc, mach_inst, npu_mvp::Opcode::Vcu, 0, ub_address, 0,
+            npu_mvp::Mte4Opcode::GmToUb, npu_mvp::Mte2Opcode::UbToGm,
+            npu_mvp::Mte1Opcode::L1ToGm, vcu_opcode);
+    command.rd = destination_register;
+    command.rs1 = source_register_1;
+    command.rs2 = source_register_2;
+    if (vcu_opcode == npu_mvp::VcuOpcode::Nsetvl) {
+        command.rs1_value = avl;
+        command.rs2_value = eew_encoding;
+    }
+    return command;
+}
+
 Fault
 sendXaiCommandDirect(ExecContext *xc, const npu_mvp::NpuCommand &command)
 {
@@ -135,6 +159,22 @@ dispatchXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
             xc, mach_inst, opcode, rd_value, rs1_value, rs2_value,
             mte4_opcode, mte2_opcode, mte1_opcode, vcu_opcode, cube_opcode,
             fixpipe_opcode, sync_opcode, gm_file_io_opcode);
+    return sendXaiCommandDirect(xc, command);
+}
+
+Fault
+dispatchXaiVcuVectorCommand(ExecContext *xc, ExtMachInst mach_inst,
+                            npu_mvp::VcuOpcode vcu_opcode,
+                            uint8_t destination_register,
+                            uint8_t source_register_1,
+                            uint8_t source_register_2,
+                            uint64_t ub_address,
+                            uint64_t avl = 0,
+                            uint64_t eew_encoding = 0)
+{
+    const auto command = buildXaiVcuVectorCommand(
+            xc, mach_inst, vcu_opcode, destination_register, source_register_1,
+            source_register_2, ub_address, avl, eew_encoding);
     return sendXaiCommandDirect(xc, command);
 }
 
@@ -190,6 +230,34 @@ def template XaiNoRegConstructor {{
         %(set_reg_idx_arr)s;
         _numSrcRegs = 0;
         _numDestRegs = 0;
+        %(constructor)s;
+    }
+}};
+
+def template XaiRs1Constructor {{
+    %(class_name)s::%(class_name)s(ExtMachInst machInst)
+        : %(base_class)s("%(mnemonic)s", machInst, %(op_class)s)
+    {
+        %(set_reg_idx_arr)s;
+        _numSrcRegs = 0;
+        _numDestRegs = 0;
+        setSrcRegIdx(_numSrcRegs++,
+                (machInst.rs1 == 0) ? RegId() : RegId(IntRegClass, machInst.rs1));
+        %(constructor)s;
+    }
+}};
+
+def template XaiRs1Rs2Constructor {{
+    %(class_name)s::%(class_name)s(ExtMachInst machInst)
+        : %(base_class)s("%(mnemonic)s", machInst, %(op_class)s)
+    {
+        %(set_reg_idx_arr)s;
+        _numSrcRegs = 0;
+        _numDestRegs = 0;
+        setSrcRegIdx(_numSrcRegs++,
+                (machInst.rs1 == 0) ? RegId() : RegId(IntRegClass, machInst.rs1));
+        setSrcRegIdx(_numSrcRegs++,
+                (machInst.rs2 == 0) ? RegId() : RegId(IntRegClass, machInst.rs2));
         %(constructor)s;
     }
 }};
@@ -292,6 +360,95 @@ def format XaiVcuOp(vcu_opcode, *flags) {{
     iop.padSrcRegIdx(3)
     header_output = XaiDeclare.subst(iop)
     decoder_output = XaiConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiVcuVectorLoadOp(vcu_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t ub_address = xc->getRegOperand(this, 0);
+    Fault fault = dispatchXaiVcuVectorCommand(
+            xc, machInst, %(vcu_opcode)s, bits(machInst, 11, 7), 0, 0,
+            ub_address);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'vcu_opcode': 'npu_mvp::VcuOpcode::' + vcu_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(1)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiRs1Constructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiVcuVectorStoreOp(vcu_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t ub_address = xc->getRegOperand(this, 0);
+    Fault fault = dispatchXaiVcuVectorCommand(
+            xc, machInst, %(vcu_opcode)s, 0, 0, bits(machInst, 11, 7),
+            ub_address);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'vcu_opcode': 'npu_mvp::VcuOpcode::' + vcu_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(1)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiRs1Constructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiVcuVectorArithOp(vcu_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    Fault fault = dispatchXaiVcuVectorCommand(
+            xc, machInst, %(vcu_opcode)s, bits(machInst, 11, 7),
+            bits(machInst, 19, 15), bits(machInst, 24, 20), 0);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'vcu_opcode': 'npu_mvp::VcuOpcode::' + vcu_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiNoRegConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiVcuVectorSetvlImmOp(vcu_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t avl = xc->getRegOperand(this, 0);
+    const uint64_t eew_encoding = (bits(machInst, 30, 20) >> 3) & 0x7;
+    Fault fault = dispatchXaiVcuVectorCommand(
+            xc, machInst, %(vcu_opcode)s, 0, 0, 0, 0, avl, eew_encoding);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'vcu_opcode': 'npu_mvp::VcuOpcode::' + vcu_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(1)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiRs1Constructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiVcuVectorSetvlRegOp(vcu_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t avl = xc->getRegOperand(this, 0);
+    const uint64_t vtype = xc->getRegOperand(this, 1);
+    const uint64_t eew_encoding = (vtype >> 3) & 0x7;
+    Fault fault = dispatchXaiVcuVectorCommand(
+            xc, machInst, %(vcu_opcode)s, 0, 0, 0, 0, avl, eew_encoding);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'vcu_opcode': 'npu_mvp::VcuOpcode::' + vcu_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(2)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiRs1Rs2Constructor.subst(iop)
     decode_block = BasicDecode.subst(iop)
     exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
 }};

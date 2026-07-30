@@ -1,0 +1,13 @@
+// -*- mode:c++ -*-
+
+// Reuse the base RVV templates and formats, but keep a separate decoder for
+// vector encodings that should dispatch to the NPU.
+
+##include "../base/vector_arith.temp.isa"
+##include "../base/vector_mem.temp.isa"
+
+##include "../base/vector_conf.isa"
+##include "../base/vector_arith.isa"
+##include "../base/vector_mem.isa"
+
+##include "decoder.isa"
