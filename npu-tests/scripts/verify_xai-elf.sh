@@ -838,7 +838,7 @@ check_vcu_backpressure_log()
 
     check_xai_vcd "VCU backpressure" "$vcd_file" 1 "$log_file"
     check_vcd_signal_minimum "VCU backpressure" "$vcd_file" \
-        "vcu_queue_size" 8 "$log_file"
+        "npu0.vcu.queue_size" 8 "$log_file"
 }
 
 run_vcu_backpressure()

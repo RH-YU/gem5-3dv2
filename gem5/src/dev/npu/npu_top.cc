@@ -209,30 +209,39 @@ NpuTop::trace_engine_start(Engine engine, uint32_t raw_instruction)
     trace_signals.engine_start_event = !trace_signals.engine_start_event;
     switch (engine) {
       case Engine::Mte4:
+        trace_signals.mte4_start_event = !trace_signals.mte4_start_event;
         trace_signals.mte4_busy = true;
         trace_signals.mte4_instruction = raw_instruction;
         break;
       case Engine::Mte1:
+        trace_signals.mte1_start_event = !trace_signals.mte1_start_event;
         trace_signals.mte1_busy = true;
         trace_signals.mte1_instruction = raw_instruction;
         break;
       case Engine::Mte2:
+        trace_signals.mte2_start_event = !trace_signals.mte2_start_event;
         trace_signals.mte2_busy = true;
         trace_signals.mte2_instruction = raw_instruction;
         break;
       case Engine::Vcu:
+        trace_signals.vcu_start_event = !trace_signals.vcu_start_event;
         trace_signals.vcu_busy = true;
         trace_signals.vcu_instruction = raw_instruction;
         break;
       case Engine::Cube:
+        trace_signals.cube_start_event = !trace_signals.cube_start_event;
         trace_signals.cube_busy = true;
         trace_signals.cube_instruction = raw_instruction;
         break;
       case Engine::Fixpipe:
+        trace_signals.fixpipe_start_event =
+                !trace_signals.fixpipe_start_event;
         trace_signals.fixpipe_busy = true;
         trace_signals.fixpipe_instruction = raw_instruction;
         break;
       case Engine::GmFileIo:
+        trace_signals.gm_file_io_start_event =
+                !trace_signals.gm_file_io_start_event;
         trace_signals.gm_file_io_busy = true;
         trace_signals.gm_file_io_instruction = raw_instruction;
         break;
@@ -248,30 +257,39 @@ NpuTop::trace_engine_done(Engine engine)
     trace_signals.engine_done_event = !trace_signals.engine_done_event;
     switch (engine) {
       case Engine::Mte4:
+        trace_signals.mte4_done_event = !trace_signals.mte4_done_event;
         trace_signals.mte4_busy = false;
         trace_signals.mte4_instruction = 0;
         break;
       case Engine::Mte1:
+        trace_signals.mte1_done_event = !trace_signals.mte1_done_event;
         trace_signals.mte1_busy = false;
         trace_signals.mte1_instruction = 0;
         break;
       case Engine::Mte2:
+        trace_signals.mte2_done_event = !trace_signals.mte2_done_event;
         trace_signals.mte2_busy = false;
         trace_signals.mte2_instruction = 0;
         break;
       case Engine::Vcu:
+        trace_signals.vcu_done_event = !trace_signals.vcu_done_event;
         trace_signals.vcu_busy = false;
         trace_signals.vcu_instruction = 0;
         break;
       case Engine::Cube:
+        trace_signals.cube_done_event = !trace_signals.cube_done_event;
         trace_signals.cube_busy = false;
         trace_signals.cube_instruction = 0;
         break;
       case Engine::Fixpipe:
+        trace_signals.fixpipe_done_event =
+                !trace_signals.fixpipe_done_event;
         trace_signals.fixpipe_busy = false;
         trace_signals.fixpipe_instruction = 0;
         break;
       case Engine::GmFileIo:
+        trace_signals.gm_file_io_done_event =
+                !trace_signals.gm_file_io_done_event;
         trace_signals.gm_file_io_busy = false;
         trace_signals.gm_file_io_instruction = 0;
         break;

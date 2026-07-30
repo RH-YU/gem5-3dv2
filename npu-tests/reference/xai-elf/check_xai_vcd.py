@@ -6,35 +6,54 @@ from pathlib import Path
 
 
 NPU_SIGNALS = [
-    "ingress_event",
-    "dispatch_event",
-    "engine_start_event",
-    "engine_done_event",
-    "fault_event",
-    "sync_event",
-    "mte4_busy",
-    "mte1_busy",
-    "mte2_busy",
-    "vcu_busy",
-    "cube_busy",
-    "fixpipe_busy",
-    "gm_file_io_busy",
-    "scheduler_queue_size",
-    "mte4_queue_size",
-    "mte1_queue_size",
-    "mte2_queue_size",
-    "vcu_queue_size",
-    "cube_queue_size",
-    "fixpipe_queue_size",
-    "gm_file_io_queue_size",
-    "mte4_instruction",
-    "mte1_instruction",
-    "mte2_instruction",
-    "vcu_instruction",
-    "cube_instruction",
-    "fixpipe_instruction",
-    "gm_file_io_instruction",
+    "scheduler.ingress_event",
+    "scheduler.dispatch_event",
+    "scheduler.queue_size",
+    "fault.event",
+    "sync.event",
+    "mte4.start_event",
+    "mte4.done_event",
+    "mte4.busy",
+    "mte4.queue_size",
+    "mte4.instruction",
+    "mte1.start_event",
+    "mte1.done_event",
+    "mte1.busy",
+    "mte1.queue_size",
+    "mte1.instruction",
+    "mte2.start_event",
+    "mte2.done_event",
+    "mte2.busy",
+    "mte2.queue_size",
+    "mte2.instruction",
+    "vcu.start_event",
+    "vcu.done_event",
+    "vcu.busy",
+    "vcu.queue_size",
+    "vcu.instruction",
+    "cube.start_event",
+    "cube.done_event",
+    "cube.busy",
+    "cube.queue_size",
+    "cube.instruction",
+    "fixpipe.start_event",
+    "fixpipe.done_event",
+    "fixpipe.busy",
+    "fixpipe.queue_size",
+    "fixpipe.instruction",
+    "gm_file_io.start_event",
+    "gm_file_io.done_event",
+    "gm_file_io.busy",
+    "gm_file_io.queue_size",
+    "gm_file_io.instruction",
 ]
+
+
+class VcdSignal:
+    def __init__(self, path: str, identifier: str, width: int):
+        self.path = path
+        self.identifier = identifier
+        self.width = width
 
 
 def parse_integer(value: str) -> int:
@@ -52,6 +71,43 @@ def require_needles(text: str, needles: list[str]) -> None:
     for needle in needles:
         if needle not in text:
             raise SystemExit(1)
+
+
+def declaration_name(raw_name: str) -> str:
+    return re.sub(r"\s+\[[^\]]+\]$", "", raw_name).strip()
+
+
+def parse_signals(text: str) -> list[VcdSignal]:
+    signals = []
+    scopes = []
+    for line in text.splitlines():
+        scope = re.match(r"\$scope\s+\S+\s+(\S+)\s+\$end", line)
+        if scope:
+            scopes.append(scope.group(1))
+            continue
+        if line.startswith("$upscope"):
+            if scopes:
+                scopes.pop()
+            continue
+        variable = re.match(r"\$var\s+\w+\s+(\d+)\s+(\S+)\s+(.+?)\s+\$end", line)
+        if not variable:
+            continue
+        width = int(variable.group(1))
+        identifier = variable.group(2)
+        name = declaration_name(variable.group(3))
+        signals.append(VcdSignal(".".join(scopes + [name]), identifier, width))
+    return signals
+
+
+def find_signal(text: str, signal_path: str, width: int | None = None) -> VcdSignal:
+    matches = [
+        signal for signal in parse_signals(text)
+        if (signal.path == signal_path or signal.path.endswith("." + signal_path))
+        and (width is None or signal.width == width)
+    ]
+    if len(matches) != 1:
+        raise SystemExit(1)
+    return matches[0]
 
 
 def check_structure(args: argparse.Namespace) -> None:
@@ -72,49 +128,29 @@ def check_structure(args: argparse.Namespace) -> None:
         ],
     )
 
-    for signal in ["commit_pc", "commit_insn"]:
-        pattern = rf"\$var\s+wire\s+32\s+\S+\s+{signal}\s+\[31:0\]\s+\$end"
-        if not re.search(pattern, text):
-            raise SystemExit(1)
-
-    commit_insn = re.search(
-        r"\$var\s+wire\s+32\s+(\S+)\s+commit_insn\s+\[31:0\]\s+\$end",
-        text,
-    )
-    if not commit_insn or not re.search(
-        rf"\bb[01]*1[01]*\s+{re.escape(commit_insn.group(1))}\b", text
+    find_signal(text, "cpu.commit_pc", 32)
+    commit_insn = find_signal(text, "cpu.commit_insn", 32)
+    if not re.search(
+        rf"\bb[01]*1[01]*\s+{re.escape(commit_insn.identifier)}\b", text
     ):
         raise SystemExit(1)
 
     for npu_id in range(args.npu_count):
         require_needles(text, [f"$scope module npu{npu_id} $end"])
-        require_needles(text, NPU_SIGNALS)
+        for signal in NPU_SIGNALS:
+            find_signal(text, f"npu{npu_id}.{signal}")
 
 
 def check_signal_asserted(args: argparse.Namespace) -> None:
     text = read_ascii_vcd(args.vcd_file)
-    match = re.search(
-        rf"\$var\s+\w+\s+\d+\s+(\S+)\s+{re.escape(args.signal_name)}\s+\$end",
-        text,
-    )
-    if not match:
-        raise SystemExit(1)
-
-    identifier = re.escape(match.group(1))
+    identifier = re.escape(find_signal(text, args.signal_name).identifier)
     if not re.search(rf"(?m)^1{identifier}$", text):
         raise SystemExit(1)
 
 
 def check_signal_minimum(args: argparse.Namespace) -> None:
     text = read_ascii_vcd(args.vcd_file)
-    match = re.search(
-        rf"\$var\s+\w+\s+32\s+(\S+)\s+{re.escape(args.signal_name)}\s+\[31:0\]\s+\$end",
-        text,
-    )
-    if not match:
-        raise SystemExit(1)
-
-    identifier = re.escape(match.group(1))
+    identifier = re.escape(find_signal(text, args.signal_name, 32).identifier)
     values = [
         int(bits, 2)
         for bits in re.findall(rf"(?m)^b([01]+)\s+{identifier}$", text)
