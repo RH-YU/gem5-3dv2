@@ -84,6 +84,11 @@ class NpuTop : public sc_core::sc_module
 
     // NPU private storage and address decoding.
     DecodedAddress decode(uint64_t address, uint64_t byte_count, Region expected) const;
+    DecodedAddress decode_any(uint64_t address, uint64_t byte_count) const;
+    const char *storage_region_name(const NpuCommand &command) const;
+    static const char *region_name(Region region);
+    static bool can_write_data_to_region(Region region);
+    static bool can_load_data_from_region(Region region);
     std::vector<uint8_t> read(Region region, uint64_t local_address, uint64_t byte_count) const;
     void write(Region region, uint64_t local_address, const std::vector<uint8_t> &data);
 
@@ -115,8 +120,8 @@ class NpuTop : public sc_core::sc_module
 
     // Simulator-only GM file I/O engine.
     void gm_file_io_thread();
-    void WriteDataToGm(const ScheduledCommand &command);
-    void LoadDataFromGm(const ScheduledCommand &command);
+    void WriteDataToNpu(const ScheduledCommand &command);
+    void LoadDataFromNpu(const ScheduledCommand &command);
 
     // Timing helpers.
     sc_core::sc_time transfer_delay(uint64_t byte_count, double bytes_per_ns,

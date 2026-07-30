@@ -2,11 +2,11 @@ namespace
 {
 
 inline void
-WriteDataToGm(unsigned long bytes, unsigned long gm_dst,
-              unsigned long file_index)
+WriteDataToNpu(unsigned long bytes, unsigned long npu_dst,
+               unsigned long file_index)
 {
     register unsigned long byte_count asm("t0") = bytes;
-    register unsigned long dst asm("a0") = gm_dst;
+    register unsigned long dst asm("a0") = npu_dst;
     register unsigned long index asm("a1") = file_index;
     asm volatile(".insn r 0x5b, 0x4, 0x00, %0, %1, %2"
                  :
@@ -15,11 +15,11 @@ WriteDataToGm(unsigned long bytes, unsigned long gm_dst,
 }
 
 inline void
-LoadDataFromGm(unsigned long bytes, unsigned long gm_src,
-               unsigned long file_index)
+LoadDataFromNpu(unsigned long bytes, unsigned long npu_src,
+                unsigned long file_index)
 {
     register unsigned long byte_count asm("t0") = bytes;
-    register unsigned long src asm("a0") = gm_src;
+    register unsigned long src asm("a0") = npu_src;
     register unsigned long index asm("a1") = file_index;
     asm volatile(".insn r 0x5b, 0x4, 0x01, %0, %1, %2"
                  :
@@ -123,7 +123,7 @@ main()
     constexpr unsigned long file_index = 1;
     constexpr unsigned long recursive_add_count = 16;
 
-    WriteDataToGm(32, gm_input, file_index);
+    WriteDataToNpu(32, gm_input, file_index);
     XAI_SYNC_SET(XAI_SYNC_GM_FILE_IO, XAI_SYNC_MTE4, 0);
     XAI_SYNC_WAIT(XAI_SYNC_GM_FILE_IO, XAI_SYNC_MTE4, 0);
 
@@ -146,7 +146,7 @@ main()
     XAI_SYNC_SET(XAI_SYNC_MTE2, XAI_SYNC_GM_FILE_IO, 3);
     XAI_SYNC_WAIT(XAI_SYNC_MTE2, XAI_SYNC_GM_FILE_IO, 3);
 
-    LoadDataFromGm(vector_bytes, gm_result, file_index);
+    LoadDataFromNpu(vector_bytes, gm_result, file_index);
     XAI_SYNC_SET(XAI_SYNC_GM_FILE_IO, XAI_SYNC_CPU, 4);
     XAI_SYNC_WAIT(XAI_SYNC_GM_FILE_IO, XAI_SYNC_CPU, 4);
 

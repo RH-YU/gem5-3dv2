@@ -28,7 +28,7 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
                         npu_mvp::FixpipeOpcode::L0CToL1,
                 npu_mvp::SyncOpcode sync_opcode = npu_mvp::SyncOpcode::Set,
                 npu_mvp::GmFileIoOpcode gm_file_io_opcode =
-                        npu_mvp::GmFileIoOpcode::WriteDataToGm)
+                        npu_mvp::GmFileIoOpcode::WriteDataToNpu)
 {
     const auto &pc_state = xc->pcState().as<RiscvISA::PCState>();
 
@@ -64,13 +64,13 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
         const uint64_t file_index = rs2_value;
         const std::string file_prefix =
                 gm_file_io_opcode ==
-                npu_mvp::GmFileIoOpcode::WriteDataToGm
+                npu_mvp::GmFileIoOpcode::WriteDataToNpu
                 ? "GMInputFile_"
                 : "GMOutputFile_";
         command.sim_file_path =
                 file_prefix + std::to_string(command.hart_id) + "_" +
                 std::to_string(file_index) + ".bin";
-        command.gm_physical_address = rs1_value;
+        command.storage_physical_address = rs1_value;
         command.file_byte_count = rd_value;
     }
     return command;
@@ -111,7 +111,7 @@ dispatchXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
                            npu_mvp::FixpipeOpcode::L0CToL1,
                    npu_mvp::SyncOpcode sync_opcode = npu_mvp::SyncOpcode::Set,
                    npu_mvp::GmFileIoOpcode gm_file_io_opcode =
-                           npu_mvp::GmFileIoOpcode::WriteDataToGm)
+                           npu_mvp::GmFileIoOpcode::WriteDataToNpu)
 {
     const auto command = buildXaiCommand(
             xc, mach_inst, opcode, rd_value, rs1_value, rs2_value,

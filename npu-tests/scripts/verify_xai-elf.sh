@@ -492,7 +492,7 @@ check_smoke_log()
     check_xai_log_common "smoke" "$log_file"
 
     for op in mte4 mte2 vload vstore vadd nsetvl sync_set sync_wait \
-        WriteDataToGm LoadDataFromGm; do
+        WriteDataToNpu LoadDataFromNpu; do
         if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=$op " "$log_file"; then
             cat "$log_file"
             echo "FAIL: Xai operation $op did not reach NPU target." >&2
@@ -618,9 +618,9 @@ check_multinpu_log()
 
     local npu_id
     for ((npu_id = 0; npu_id < npu_count; ++npu_id)); do
-        if ! grep -Fq "CPU[0]NPU[${npu_id}] : op=WriteDataToGm opcode=5 subopcode=0 mask=0xf" "$log_file"; then
+        if ! grep -Eq "CPU\\[0\\]NPU\\[${npu_id}\\] : op=WriteDataToNpu .*opcode=5 subopcode=0 .*mask=0xf .*storage_region=gm" "$log_file"; then
             cat "$log_file"
-            echo "FAIL: NPU${npu_id} did not execute its WriteDataToGm command." >&2
+            echo "FAIL: NPU${npu_id} did not execute its WriteDataToNpu command." >&2
             exit 1
         fi
 
@@ -719,9 +719,9 @@ check_cube_smoke_log()
     local op
     check_xai_log_common "cube smoke" "$log_file"
 
-    for op in WriteDataToGm mte4_gm_to_l1 mte1_l1_to_l0a \
+    for op in WriteDataToNpu mte4_gm_to_l1 mte1_l1_to_l0a \
         mte1_l1_to_l0b cube_mma_fp32 fixpipe_l0c_to_l1 \
-        mte1_l1_to_ub mte2_ub_to_gm LoadDataFromGm sync_set sync_wait; do
+        mte1_l1_to_ub mte2_ub_to_gm LoadDataFromNpu sync_set sync_wait; do
         if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=$op " "$log_file"; then
             cat "$log_file"
             echo "FAIL: cube smoke operation $op did not reach NPU target." >&2

@@ -58,8 +58,8 @@ enum class SyncOpcode : uint8_t {
 };
 
 enum class GmFileIoOpcode : uint8_t {
-    WriteDataToGm = 0,
-    LoadDataFromGm = 1,
+    WriteDataToNpu = 0,
+    LoadDataFromNpu = 1,
 };
 
 enum class Engine : uint8_t {
@@ -117,7 +117,7 @@ struct NpuCommand
     CubeOpcode cube_opcode = CubeOpcode::MmaFp32_8x16x16;
     FixpipeOpcode fixpipe_opcode = FixpipeOpcode::L0CToL1;
     SyncOpcode sync_opcode = SyncOpcode::Set;
-    GmFileIoOpcode gm_file_io_opcode = GmFileIoOpcode::WriteDataToGm;
+    GmFileIoOpcode gm_file_io_opcode = GmFileIoOpcode::WriteDataToNpu;
     uint64_t pc = 0;
     uint32_t raw_instruction = 0;
     uint64_t rd_value = 0;
@@ -132,7 +132,7 @@ struct NpuCommand
     SyncEndpoint sync_dst = SyncEndpoint::Mte4;
     uint8_t sync_id = 0;
     std::string sim_file_path;
-    uint64_t gm_physical_address = 0;
+    uint64_t storage_physical_address = 0;
     uint64_t file_byte_count = 0;
 };
 

@@ -51,9 +51,9 @@ opcode_name(const NpuCommand &command)
         return command.sync_opcode == SyncOpcode::Set ? "sync_set" : "sync_wait";
 
     if (command.opcode == Opcode::GmFileIo) {
-        return command.gm_file_io_opcode == GmFileIoOpcode::LoadDataFromGm
-                ? "LoadDataFromGm"
-                : "WriteDataToGm";
+        return command.gm_file_io_opcode == GmFileIoOpcode::LoadDataFromNpu
+                ? "LoadDataFromNpu"
+                : "WriteDataToNpu";
     }
 
     if (command.opcode == Opcode::Cube)
@@ -226,7 +226,10 @@ NpuTop::trace_command(const NpuCommand &command) const
               << " rs2=x" << static_cast<unsigned>(command.rs2)
               << " rd_value=" << command.rd_value
               << " rs1_value=" << command.rs1_value
-              << " rs2_value=" << command.rs2_value
+              << " rs2_value=" << command.rs2_value;
+    if (command.opcode == Opcode::GmFileIo)
+        std::cout << " storage_region=" << storage_region_name(command);
+    std::cout
               << " sync_src=" << static_cast<unsigned>(command.sync_src)
               << " sync_dst=" << static_cast<unsigned>(command.sync_dst)
               << " sync_id=" << static_cast<unsigned>(command.sync_id)

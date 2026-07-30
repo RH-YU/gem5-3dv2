@@ -356,6 +356,83 @@ NpuTop::decode(uint64_t address, uint64_t byte_count, Region expected) const
     return {expected, address - base};
 }
 
+NpuTop::DecodedAddress
+NpuTop::decode_any(uint64_t address, uint64_t byte_count) const
+{
+    for (const Region region :
+         {Region::Gm, Region::Ub, Region::L1, Region::L0A, Region::L0B,
+          Region::L0C}) {
+        try {
+            return decode(address, byte_count, region);
+        } catch (const std::out_of_range &) {
+        }
+    }
+    throw std::out_of_range("NPU physical address does not fit any storage region");
+}
+
+const char *
+NpuTop::region_name(Region region)
+{
+    switch (region) {
+      case Region::Gm: return "gm";
+      case Region::Ub: return "ub";
+      case Region::L1: return "l1";
+      case Region::L0A: return "l0a";
+      case Region::L0B: return "l0b";
+      case Region::L0C: return "l0c";
+    }
+    return "invalid";
+}
+
+const char *
+NpuTop::storage_region_name(const NpuCommand &command) const
+{
+    if (command.opcode != Opcode::GmFileIo)
+        return "";
+
+    try {
+        const uint64_t byte_count = command.file_byte_count == 0
+                                            ? 1
+                                            : command.file_byte_count;
+        return region_name(
+                decode_any(command.storage_physical_address, byte_count).region);
+    } catch (const std::exception &) {
+        return "invalid";
+    }
+}
+
+bool
+NpuTop::can_write_data_to_region(Region region)
+{
+    switch (region) {
+      case Region::Gm:
+      case Region::Ub:
+      case Region::L1:
+      case Region::L0A:
+      case Region::L0B:
+        return true;
+      case Region::L0C:
+        return false;
+    }
+    return false;
+}
+
+bool
+NpuTop::can_load_data_from_region(Region region)
+{
+    switch (region) {
+      case Region::Gm:
+      case Region::Ub:
+      case Region::L1:
+      case Region::L0C:
+        return true;
+      case Region::L0A:
+      case Region::L0B:
+        return false;
+    }
+    return false;
+}
+
 std::vector<uint8_t>
 NpuTop::read(Region region, uint64_t local_address, uint64_t byte_count) const
 {
