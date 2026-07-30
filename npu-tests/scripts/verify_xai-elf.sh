@@ -12,6 +12,7 @@ gem5_config="$gem5_root/configs/example/npu/baremetal_xiangshan.py"
 riscv_toolchain_root="${RISCV_TOOLCHAIN_ROOT:-$project_root/riscv_bin}"
 riscv_toolchain_bin="${RISCV_TOOLCHAIN_BIN:-}"
 riscv_toolchain_prefix="${RISCV_TOOLCHAIN_PREFIX:-}"
+l1i_hwp_type="${L1I_HWP_TYPE:-}"
 
 toolchain_bin_candidates()
 {
@@ -141,7 +142,18 @@ emit_asm()
 
 usage()
 {
-    echo "Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure|run-vcu-backpressure-cache-debug|run-cube-smoke]" >&2
+    cat >&2 <<EOF
+Usage: $0 [all|build-gem5|run-smoke|run-multinpu|run-vcu-backpressure|run-vcu-backpressure-cache-debug|run-cube-smoke]
+
+Optional env:
+  L1I_HWP_TYPE=<prefetcher>  Enable L1 ICache prefetcher for verify runs.
+
+Common prefetcher candidates:
+  TaggedPrefetcher, StridePrefetcher, XSStridePrefetcher, XSCompositePrefetcher
+
+List supported types:
+  $gem5_bin $gem5_config --list-hwp-types
+EOF
 }
 
 check_host()
@@ -264,6 +276,9 @@ run_xai_sim()
     if [[ -n "$npu_count" ]]; then
         sim_args+=(--npu-count "$npu_count")
     fi
+    if [[ -n "$l1i_hwp_type" ]]; then
+        sim_args+=(--l1i-hwp-type "$l1i_hwp_type")
+    fi
     sim_args+=(
         --npu-enable-sim-gm-file-io
         --npu-sim-gm-file-io-root "$gm_root"
@@ -271,7 +286,6 @@ run_xai_sim()
         --npu-cmd-base 0x20000000
         --npu-cmd-size 0x1000
         --npu-vcd-trace-file "$vcd_base"
-        --cacheline_size=1024
     )
     if [[ -n "$npu_count" ]]; then
         sim_args+=(--num-cpus 1)
