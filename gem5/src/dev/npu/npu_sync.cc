@@ -7,7 +7,7 @@ bool
 NpuTop::is_cpu_sync_set(const NpuCommand &command) const
 {
     return command.opcode == Opcode::Sync &&
-           command.sync_opcode == SyncOpcode::Set &&
+           as_sync_opcode(command) == SyncOpcode::Set &&
            command.sync_src == SyncEndpoint::Cpu;
 }
 
@@ -15,7 +15,7 @@ bool
 NpuTop::is_cpu_sync_wait(const NpuCommand &command) const
 {
     return command.opcode == Opcode::Sync &&
-           command.sync_opcode == SyncOpcode::Wait &&
+           as_sync_opcode(command) == SyncOpcode::Wait &&
            command.sync_dst == SyncEndpoint::Cpu;
 }
 
@@ -57,7 +57,7 @@ void
 NpuTop::execute_sync(const ScheduledCommand &command)
 {
     trace_sync_start(command.command);
-    if (command.command.sync_opcode == SyncOpcode::Set) {
+    if (as_sync_opcode(command.command) == SyncOpcode::Set) {
         signal_sync_token(command.command);
     } else {
         wait_for_sync_token(command.command);

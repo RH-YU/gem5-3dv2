@@ -12,7 +12,7 @@ void
 NpuTop::execute_fixpipe(const ScheduledCommand &command)
 {
     const Region destination =
-            command.command.fixpipe_opcode == FixpipeOpcode::L0CToUb
+            as_fixpipe_opcode(command.command) == FixpipeOpcode::L0CToUb
             ? Region::Ub
             : Region::L1;
     execute_mte(command, Region::L0C, destination);

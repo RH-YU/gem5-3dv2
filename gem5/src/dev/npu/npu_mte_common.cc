@@ -21,7 +21,7 @@ NpuTop::execute_mte(const ScheduledCommand &command, Region source, Region desti
 void
 NpuTop::execute_mte4(const ScheduledCommand &command)
 {
-    const Region destination = command.command.mte4_opcode == Mte4Opcode::GmToL1
+    const Region destination = as_mte4_opcode(command.command) == Mte4Opcode::GmToL1
             ? Region::L1
             : Region::Ub;
     execute_mte(command, Region::Gm, destination);
@@ -31,7 +31,7 @@ void
 NpuTop::execute_mte1(const ScheduledCommand &command)
 {
     Region destination = Region::Gm;
-    switch (command.command.mte1_opcode) {
+    switch (as_mte1_opcode(command.command)) {
       case Mte1Opcode::L1ToGm:
         destination = Region::Gm;
         break;
@@ -51,7 +51,7 @@ NpuTop::execute_mte1(const ScheduledCommand &command)
 void
 NpuTop::execute_mte2(const ScheduledCommand &command)
 {
-    const Region destination = command.command.mte2_opcode == Mte2Opcode::UbToL1
+    const Region destination = as_mte2_opcode(command.command) == Mte2Opcode::UbToL1
             ? Region::L1
             : Region::Gm;
     execute_mte(command, Region::Ub, destination);

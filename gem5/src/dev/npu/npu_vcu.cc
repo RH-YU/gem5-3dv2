@@ -58,7 +58,7 @@ NpuTop::vcu_thread()
             trace_engine_start(Engine::Vcu, command.command.raw_instruction);
             if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
-            } else if (command.command.vcu_opcode == VcuOpcode::Nsetvl) {
+            } else if (as_vcu_opcode(command.command) == VcuOpcode::Nsetvl) {
                 wait(config.scheduler_dispatch_delay);
                 try {
                     execute_vcu_nsetvl(command);

@@ -110,14 +110,7 @@ enum class DispatchStatus : uint8_t {
 struct NpuCommand
 {
     Opcode opcode = Opcode::Vcu;
-    Mte4Opcode mte4_opcode = Mte4Opcode::GmToUb;
-    Mte2Opcode mte2_opcode = Mte2Opcode::UbToGm;
-    Mte1Opcode mte1_opcode = Mte1Opcode::L1ToGm;
-    VcuOpcode vcu_opcode = VcuOpcode::Nsetvl;
-    CubeOpcode cube_opcode = CubeOpcode::MmaFp32_8x16x16;
-    FixpipeOpcode fixpipe_opcode = FixpipeOpcode::L0CToL1;
-    SyncOpcode sync_opcode = SyncOpcode::Set;
-    GmFileIoOpcode gm_file_io_opcode = GmFileIoOpcode::WriteDataToNpu;
+    uint8_t subopcode = static_cast<uint8_t>(VcuOpcode::Nsetvl);
     uint64_t pc = 0;
     uint32_t raw_instruction = 0;
     uint64_t rd_value = 0;
@@ -135,6 +128,54 @@ struct NpuCommand
     uint64_t storage_physical_address = 0;
     uint64_t file_byte_count = 0;
 };
+
+inline Mte4Opcode
+as_mte4_opcode(const NpuCommand &command)
+{
+    return static_cast<Mte4Opcode>(command.subopcode);
+}
+
+inline Mte2Opcode
+as_mte2_opcode(const NpuCommand &command)
+{
+    return static_cast<Mte2Opcode>(command.subopcode);
+}
+
+inline Mte1Opcode
+as_mte1_opcode(const NpuCommand &command)
+{
+    return static_cast<Mte1Opcode>(command.subopcode);
+}
+
+inline VcuOpcode
+as_vcu_opcode(const NpuCommand &command)
+{
+    return static_cast<VcuOpcode>(command.subopcode);
+}
+
+inline CubeOpcode
+as_cube_opcode(const NpuCommand &command)
+{
+    return static_cast<CubeOpcode>(command.subopcode);
+}
+
+inline FixpipeOpcode
+as_fixpipe_opcode(const NpuCommand &command)
+{
+    return static_cast<FixpipeOpcode>(command.subopcode);
+}
+
+inline SyncOpcode
+as_sync_opcode(const NpuCommand &command)
+{
+    return static_cast<SyncOpcode>(command.subopcode);
+}
+
+inline GmFileIoOpcode
+as_gm_file_io_opcode(const NpuCommand &command)
+{
+    return static_cast<GmFileIoOpcode>(command.subopcode);
+}
 
 struct VcuContext
 {

@@ -144,7 +144,7 @@ make_vcu_payload(const NpuCommand &command, const VcuContext &context)
     if (command.opcode != Opcode::Vcu)
         return std::nullopt;
 
-    const auto *descriptor = find_vcu_operation(command.vcu_opcode);
+    const auto *descriptor = find_vcu_operation(as_vcu_opcode(command));
     if (descriptor == nullptr)
         return std::nullopt;
 

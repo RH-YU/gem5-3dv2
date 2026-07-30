@@ -111,7 +111,7 @@ NpuTop::gm_file_io_thread()
                                     config.gm_file_io_bytes_per_ns,
                                     config.gm_file_io_setup_delay));
                 try {
-                    if (command.command.gm_file_io_opcode ==
+                    if (as_gm_file_io_opcode(command.command) ==
                         GmFileIoOpcode::LoadDataFromNpu) {
                         LoadDataFromNpu(command);
                     } else {

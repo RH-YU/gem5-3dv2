@@ -41,7 +41,7 @@ write_f32(std::vector<uint8_t> &data, uint64_t element, float value)
 void
 NpuTop::execute_cube(const ScheduledCommand &command)
 {
-    if (command.command.cube_opcode != CubeOpcode::MmaFp32_8x16x16)
+    if (as_cube_opcode(command.command) != CubeOpcode::MmaFp32_8x16x16)
         throw std::invalid_argument("unsupported cube opcode");
 
     const auto a_address = decode(command.command.rs1_value, cube_a_bytes,

@@ -18,19 +18,19 @@ const char *
 opcode_name(const NpuCommand &command)
 {
     if (command.opcode == Opcode::Mte4) {
-        return command.mte4_opcode == Mte4Opcode::GmToL1
+        return as_mte4_opcode(command) == Mte4Opcode::GmToL1
                 ? "mte4_gm_to_l1"
                 : "mte4_gm_to_ub";
     }
 
     if (command.opcode == Opcode::Mte2) {
-        return command.mte2_opcode == Mte2Opcode::UbToL1
+        return as_mte2_opcode(command) == Mte2Opcode::UbToL1
                 ? "mte2_ub_to_l1"
                 : "mte2_ub_to_gm";
     }
 
     if (command.opcode == Opcode::Mte1) {
-        switch (command.mte1_opcode) {
+        switch (as_mte1_opcode(command)) {
           case Mte1Opcode::L1ToGm: return "mte1_l1_to_gm";
           case Mte1Opcode::L1ToUb: return "mte1_l1_to_ub";
           case Mte1Opcode::L1ToL0A: return "mte1_l1_to_l0a";
@@ -40,18 +40,18 @@ opcode_name(const NpuCommand &command)
     }
 
     if (command.opcode == Opcode::Vcu) {
-        if (command.vcu_opcode == VcuOpcode::Nsetvl)
+        if (as_vcu_opcode(command) == VcuOpcode::Nsetvl)
             return "nsetvl";
-        if (const auto *operation = find_vcu_operation(command.vcu_opcode))
+        if (const auto *operation = find_vcu_operation(as_vcu_opcode(command)))
             return operation->name;
         return "vcu_unknown";
     }
 
     if (command.opcode == Opcode::Sync)
-        return command.sync_opcode == SyncOpcode::Set ? "sync_set" : "sync_wait";
+        return as_sync_opcode(command) == SyncOpcode::Set ? "sync_set" : "sync_wait";
 
     if (command.opcode == Opcode::GmFileIo) {
-        return command.gm_file_io_opcode == GmFileIoOpcode::LoadDataFromNpu
+        return as_gm_file_io_opcode(command) == GmFileIoOpcode::LoadDataFromNpu
                 ? "LoadDataFromNpu"
                 : "WriteDataToNpu";
     }
@@ -60,7 +60,7 @@ opcode_name(const NpuCommand &command)
         return "cube_mma_fp32";
 
     if (command.opcode == Opcode::Fixpipe) {
-        return command.fixpipe_opcode == FixpipeOpcode::L0CToUb
+        return as_fixpipe_opcode(command) == FixpipeOpcode::L0CToUb
                 ? "fixpipe_l0c_to_ub"
                 : "fixpipe_l0c_to_l1";
     }
@@ -81,17 +81,7 @@ opcode_name(const NpuCommand &command)
 unsigned
 subopcode_value(const NpuCommand &command)
 {
-    switch (command.opcode) {
-      case Opcode::Mte4: return static_cast<unsigned>(command.mte4_opcode);
-      case Opcode::Mte2: return static_cast<unsigned>(command.mte2_opcode);
-      case Opcode::Mte1: return static_cast<unsigned>(command.mte1_opcode);
-      case Opcode::Vcu: return static_cast<unsigned>(command.vcu_opcode);
-      case Opcode::Cube: return static_cast<unsigned>(command.cube_opcode);
-      case Opcode::Fixpipe: return static_cast<unsigned>(command.fixpipe_opcode);
-      case Opcode::Sync: return static_cast<unsigned>(command.sync_opcode);
-      case Opcode::GmFileIo: return static_cast<unsigned>(command.gm_file_io_opcode);
-    }
-    return 0;
+    return static_cast<unsigned>(command.subopcode);
 }
 
 uint64_t
@@ -107,7 +97,7 @@ bool
 is_vcu_nsetvl(const NpuCommand &command)
 {
     return command.opcode == Opcode::Vcu &&
-           command.vcu_opcode == VcuOpcode::Nsetvl;
+           as_vcu_opcode(command) == VcuOpcode::Nsetvl;
 }
 
 } // anonymous namespace
@@ -255,9 +245,9 @@ NpuTop::engine_has_space(Engine engine) const
 Engine
 NpuTop::sync_route_engine(const NpuCommand &command) const
 {
-    const SyncEndpoint endpoint = command.sync_opcode == SyncOpcode::Set
-                                      ? command.sync_src
-                                      : command.sync_dst;
+    const SyncEndpoint endpoint = as_sync_opcode(command) == SyncOpcode::Set
+            ? command.sync_src
+            : command.sync_dst;
     switch (endpoint) {
       case SyncEndpoint::Mte4: return Engine::Mte4;
       case SyncEndpoint::Mte2: return Engine::Mte2;
