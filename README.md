@@ -61,10 +61,24 @@ make -j"$(nproc)"
 
 ## 一键构建与验证
 
-构建 `gem5.opt` 并运行 XAI bare-metal VCU smoke 和 multi-NPU 用例：
+构建 `gem5.opt` 并运行默认单 NPU 验证用例：
 
 ```bash
 npu-tests/scripts/verify_xai-elf.sh all
+```
+
+默认单 NPU 验证会依次运行：
+
+```text
+run-rvv-npu-vcu-smoke
+run-cube-smoke
+run-rvv-npu-backpressure
+```
+
+多 NPU 验证需要显式选择 multi 类型，默认 1 个 cluster 中 4 个 NPU：
+
+```bash
+NPU_TYPE=multi npu-tests/scripts/verify_xai-elf.sh all
 ```
 
 只构建 `gem5.opt`：
@@ -73,11 +87,31 @@ npu-tests/scripts/verify_xai-elf.sh all
 npu-tests/scripts/verify_xai-elf.sh build-gem5
 ```
 
-只运行测试程序：
+只运行单个测试程序：
 
 ```bash
-npu-tests/scripts/verify_xai-elf.sh run-vcu-smoke
-npu-tests/scripts/verify_xai-elf.sh run-multinpu
+npu-tests/scripts/verify_xai-elf.sh run-rvv-npu-vcu-smoke
+npu-tests/scripts/verify_xai-elf.sh run-cube-smoke
+npu-tests/scripts/verify_xai-elf.sh run-rvv-npu-backpressure
+NPU_TYPE=multi npu-tests/scripts/verify_xai-elf.sh run-multinpu
+```
+
+如果只想观察 cache 访问日志，可以通过环境变量打开：
+
+```bash
+CACHE_LOG=1 npu-tests/scripts/verify_xai-elf.sh run-rvv-npu-vcu-smoke
+```
+
+如果需要调整多 NPU 数量，可以设置 `MULTI_NPU_COUNT`，当前支持 2 到 4：
+
+```bash
+NPU_TYPE=multi MULTI_NPU_COUNT=4 npu-tests/scripts/verify_xai-elf.sh run-multinpu
+```
+
+当前可用验证入口可以通过 help 查看：
+
+```bash
+npu-tests/scripts/verify_xai-elf.sh --help
 ```
 
 ## 减少 cache miss 干扰
@@ -88,15 +122,4 @@ npu-tests/scripts/verify_xai-elf.sh run-multinpu
 
 ```bash
 CACHELINE_SIZE=2048 npu-tests/scripts/verify_xai-elf.sh run-cube-smoke
-```
-
-直接运行 gem5 时传入：
-
-```bash
-gem5/build/RISCV/gem5.opt \
-    gem5/configs/example/npu/baremetal_xiangshan.py \
-    --baremetal-bin npu-tests/build/xai-elf/xai_cube_smoke.elf \
-    --enable-npu \
-    --npu-enable-sim-gm-file-io \
-    --cacheline_size 2048
 ```

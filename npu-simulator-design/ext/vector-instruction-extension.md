@@ -1,16 +1,17 @@
-# 新增 VCU / RVV NPU 指令说明
+# 新增 RVV NPU VCU 指令说明
 
-本文说明在当前实现中，新增一条由 NPU 执行的 vector 指令需要修改哪些文件，以及相关结构、函数和参数的作用。
+本文说明在当前实现中，如何新增一条由 NPU 执行的 RVV 向量指令。
+
+当前设计里，VCU 不再使用旧的 custom-2 专用编码；外部指令复用标准 RVV，通过 `--rvv-impl=npu` 选择 `arch/riscv/isa/vector/npu/decoder.isa`。MTE、Sync、Cube、Fixpipe、GM file I/O 仍然走 XAI 的 custom-2 通路。
 
 ## 当前执行路径
-
-VCU 当前外部指令编码复用标准 RVV，gem5 构建参数 `--rvv-impl=npu` 会选择 `vector/npu` 目录下的 decoder：
 
 ```text
 arch/riscv/isa/vector/npu/decoder.isa
   -> XaiVcuVector* format in formats/xai.isa
+  -> dispatchXaiVcuVectorCommand()
   -> buildXaiVcuVectorCommand()
-  -> NpuCommand{opcode=Vcu, subopcode, registers, values, ...}
+  -> NpuCommand{opcode=Vcu, subopcode, rd/rs1/rs2, rd_value/rs1_value/rs2_value, ...}
   -> NpuTop::submit()
   -> scheduler.ingress_queue
   -> NpuTop::dispatch_one()
@@ -31,11 +32,11 @@ arch/riscv/isa/vector/npu/decoder.isa
 | `vse32.v` | `VcuOpcode::Store` | 从 VCU 向量寄存器 store 到 UB |
 | `vadd.vv` | `VcuOpcode::Add` | VCU 向量寄存器加法 |
 
-`Nsetvl` 是 VCU 的内部控制指令。它也进入 VCU FIFO，执行时只更新当前 hart 的 `nvl` 和 `eew_bytes`，不写回 CPU GPR。
+`Nsetvl` 仍然进入 VCU FIFO，只是执行时更新 `nvl` 和 `eew_bytes`，不写回 CPU GPR。
 
 ## Opcode 设计
 
-`NpuCommand` 使用一级 opcode 加统一二级 subopcode：
+`NpuCommand` 使用一级 `opcode` 加统一二级 `subopcode`：
 
 ```cpp
 struct NpuCommand
@@ -57,7 +58,7 @@ VCU 模块读取二级 opcode 时使用：
 as_vcu_opcode(command)
 ```
 
-新增 VCU 指令不要再给 `NpuCommand` 增加 `xxx_opcode` 字段。只需要扩展 `VcuOpcode`，并让 RVV NPU decoder 把对应枚举值写入 `subopcode`。
+新增 VCU 指令时，不要再给 `NpuCommand` 增加单独的二级 opcode 字段；只需要扩展 `VcuOpcode`，并让 RVV NPU decoder 把对应枚举值写入 `subopcode`。
 
 ## 必改文件
 
@@ -75,19 +76,19 @@ enum class VcuOpcode : uint8_t {
 };
 ```
 
-枚举值是 NPU 内部二级 opcode，不要求等于 RVV 指令字段。decoder 会显式把 RVV 指令映射到这个枚举。
+枚举值是 NPU 内部二级 opcode，不要求等于 RVV 指令字段。
 
 ### `gem5/src/arch/riscv/isa/vector/npu/decoder.isa`
 
-在 RVV NPU decoder 中给目标标准 RVV 指令绑定 NPU format。
+在 RVV NPU decoder 中，把目标标准 RVV 指令绑定到对应的 `XaiVcuVector*` format。
 
-如果新增一个类似 `vadd.vv` 的三寄存器向量计算指令，可以在 OPIVV 对应位置增加：
+如果新增一条和 `vadd.vv` 同形的三寄存器向量指令，可以在 `OPIVV` 对应位置增加：
 
 ```text
 0x02: XaiVcuVectorArithOp::vsub_vv(Sub);
 ```
 
-左侧是 RVV 指令自身的 funct 编码，括号里的 `Sub` 必须对应 `VcuOpcode::Sub`。
+如果新增 `vsetvl` 类指令，可以继续复用 `XaiVcuVectorSetvlImmOp` / `XaiVcuVectorSetvlRegOp`。
 
 ### `gem5/src/dev/npu/npu_vcu_operation.cc`
 
@@ -100,14 +101,15 @@ execute_vcu_sub(VcuExecutionContext &context, const VcuPayload &payload)
     require_eew_bytes(payload, sizeof(uint32_t), "vsub");
     auto &destination = context.register_at(payload.destination_register,
                                             "vsub", "destination register");
-    const auto &left = context.register_at(payload.source_register_1,
-                                           "vsub", "source register 1");
-    const auto &right = context.register_at(payload.source_register_2,
-                                            "vsub", "source register 2");
+    const auto &subtrahend = context.register_at(payload.source_register_1,
+                                                 "vsub", "source register 1");
+    const auto &minuend = context.register_at(payload.source_register_2,
+                                              "vsub", "source register 2");
     for (uint64_t index = 0; index < payload.nvl; ++index) {
         const uint64_t byte_offset = index * payload.eew_bytes;
         write_u32(destination, byte_offset,
-                  read_u32(left, byte_offset) - read_u32(right, byte_offset));
+                  read_u32(minuend, byte_offset) -
+                  read_u32(subtrahend, byte_offset));
     }
 }
 ```
@@ -133,7 +135,7 @@ execute_vcu_sub(VcuExecutionContext &context, const VcuPayload &payload)
 - `XaiVcuVectorSetvlImmOp`：用于 `vsetvli`。
 - `XaiVcuVectorSetvlRegOp`：用于 `vsetvl`。
 
-只有新指令需要不同 operand 格式、不同寄存器读取方式或特殊立即数字段时，才需要新增 format。
+只有当新指令需要不同 operand 格式、不同寄存器读取方式或特殊立即数字段时，才需要新增 format。
 
 ### `gem5/src/dev/npu/npu_scheduler.cc`
 
@@ -143,7 +145,7 @@ execute_vcu_sub(VcuExecutionContext &context, const VcuPayload &payload)
 const auto vcu_payload = make_vcu_payload(command, context);
 ```
 
-只要新指令已经注册到 `vcu_operations` 表，`make_vcu_payload()` 就能构造出对应 payload。日志中的 `op=` 名称来自 `VcuOperationDescriptor::name`。
+只要新指令已经注册到 `vcu_operations` 表，`make_vcu_payload()` 就能构造出对应 payload。日志里的 `op=` 名称来自 `VcuOperationDescriptor::name`。
 
 ### `gem5/src/dev/npu/npu_vcu.cc`
 
@@ -169,7 +171,7 @@ rvv_vadd_v3_v1_v2()
 }
 ```
 
-新增测试时建议保持现有 baremetal 风格：准备 GM file input，XAI MTE 搬运到 UB，执行 RVV NPU VCU 指令，再通过 MTE 和 file I/O 导出结果。
+新增测试时，建议保持现有 baremetal 风格：准备 GM file input，XAI MTE 搬运到 UB，执行 RVV NPU VCU 指令，再通过 MTE 和 file I/O 导出结果。
 
 ### `npu-tests/scripts/verify_xai-elf.sh`
 
@@ -231,7 +233,7 @@ config.vsub_elements_per_ns = params.vsub_elements_per_ns;
 `NpuCommand` 是 CPU decode 后提交给 NPU 的通用命令结构。它包含：
 
 - `opcode`：一级模块类型。
-- `subopcode`：统一二级 opcode。VCU 使用 `as_vcu_opcode(command)` 解释。
+- `subopcode`：统一二级 opcode，VCU 使用 `as_vcu_opcode(command)` 解释。
 - `pc`、`raw_instruction`：用于 trace 和调试。
 - `rd/rs1/rs2`：指令寄存器编号。
 - `rd_value/rs1_value/rs2_value`：CPU 侧读出的寄存器值。
@@ -285,10 +287,10 @@ struct VcuPayload
 字段含义：
 
 - `operation`：指向 `vcu_operations` 表项。
-- `destination_register`：目的向量寄存器编号，来自 RVV `vd`。
-- `source_register_1`：源寄存器 1，load/store 时是向量寄存器编号或地址寄存器编码，计算指令时来自 `vs1`。
-- `source_register_2`：源寄存器 2，计算指令时来自 `vs2`。
-- `ub_address`：UB 地址，主要给 load/store 使用，来自地址寄存器的 CPU GPR 值。
+- `destination_register`：目的向量寄存器编号，load 和算术指令来自 RVV `vd`。
+- `source_register_1`：源寄存器 1，算术指令来自 `vs1`，load/store 通常不用。
+- `source_register_2`：源寄存器 2，算术指令来自 `vs2`，store 指令来自待写回的向量寄存器字段。
+- `ub_address`：UB 地址，主要给 load/store 使用，来自地址寄存器的 CPU GPR 值；算术指令通常为 0。
 - `nvl`：当前 vector length，来自 `Nsetvl` 写入的 `VcuContext`。
 - `eew_bytes`：元素字节数，来自 `Nsetvl` 写入的 `VcuContext`。
 
@@ -404,7 +406,7 @@ context.eew_bytes      -> eew_bytes
 ## 新增一条类似 `vadd.vv` 的指令检查清单
 
 1. 在 `VcuOpcode` 中加入内部枚举值。
-2. 在 `vector/npu/decoder.isa` 中把标准 RVV 编码映射到 `XaiVcuVectorArithOp`。
+2. 在 `vector/npu/decoder.isa` 中把标准 RVV 编码映射到 `XaiVcuVector*` format。
 3. 在 `npu_vcu_operation.cc` 中新增 `execute_vcu_xxx()`。
 4. 在 `vcu_operations` 表中注册 descriptor。
 5. 如果测试需要，新增 baremetal `.word` helper。
