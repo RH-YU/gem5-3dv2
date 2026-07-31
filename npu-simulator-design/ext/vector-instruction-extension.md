@@ -159,7 +159,7 @@ execute_vcu_operation(context, payload);
 
 ## 测试相关文件
 
-### `npu-tests/baremetal/xai-elf/*.cc`
+### `npu-tests/baremetal/vcu/*.cc`
 
 测试程序可以直接写标准 RVV 编码。当前为了避免依赖编译器 RVV intrinsic，测试仍使用 `.word` 固定指令编码。
 
@@ -173,9 +173,9 @@ rvv_vadd_v3_v1_v2()
 
 新增测试时，建议保持现有 baremetal 风格：准备 file input，XAI MTE 搬运到 UB，执行 RVV NPU VCU 指令，再通过 MTE 和 FileIo 导出结果。
 
-### `npu-tests/scripts/verify_xai-elf.sh`
+### `npu-tests/scripts/vcu.sh`
 
-如果测试需要检查日志，需要把新 op 名加入对应 check。
+如果测试需要检查日志，需要把新 op 名加入 VCU 对应用例的 check。
 
 ```bash
 for op in ... vsub ...; do
@@ -186,8 +186,7 @@ done
 日志名来自 `vcu_operations` 表项中的 `name` 字段。当前 RVV NPU VCU 相关用例包括：
 
 ```bash
-npu-tests/scripts/verify_xai-elf.sh run-rvv-npu-vcu-smoke
-npu-tests/scripts/verify_xai-elf.sh run-rvv-npu-backpressure
+npu-tests/scripts/vcu.sh
 ```
 
 ## 需要新性能参数时
@@ -410,7 +409,7 @@ context.eew_bytes      -> eew_bytes
 3. 在 `npu_vcu_operation.cc` 中新增 `execute_vcu_xxx()`。
 4. 在 `vcu_operations` 表中注册 descriptor。
 5. 如果测试需要，新增 baremetal `.word` helper。
-6. 如果 verify 需要检查日志，更新 `verify_xai-elf.sh`。
+6. 如果测试需要检查日志，更新 VCU 对应的模块脚本或底层兼容脚本。
 7. 增量编译相关 ISA 和 NPU 对象文件。
 
 ## 推荐验证命令
@@ -418,7 +417,8 @@ context.eew_bytes      -> eew_bytes
 不需要全量构建时，可以先做脚本语法和对象级编译：
 
 ```bash
-bash -n npu-tests/scripts/verify_xai-elf.sh
+bash -n npu-tests/scripts/build_gem5.sh
+bash -n npu-tests/scripts/vcu.sh
 
 cd gem5
 scons build/RISCV/dev/npu/npu_vcu_operation.o \

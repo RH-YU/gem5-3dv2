@@ -35,7 +35,7 @@ GM -> MTE4 -> L1 -> MTE1 -> L0A/L0B -> Cube -> L0C -> Fixpipe -> L1/UB
 | 调度器 | `dev/npu/npu_scheduler.*` | 接收 ingress FIFO，更新 VCU context，按 opcode 路由到目标 engine FIFO |
 | 执行引擎 | `npu_mte*.cc`、`npu_vcu.cc`、`npu_cube.cc`、`npu_fixpipe.cc`、`npu_file_io.cc`、`npu_sync.cc` | 各模块独立 SystemC thread，按 FIFO 顺序执行命令 |
 | VCU 操作表 | `npu_vcu_operation.*` | 将 VCU 内部子 opcode 映射到具体 handler，例如日志中的 `vload`、`vstore`、`vadd` |
-| 测试入口 | `npu-tests/scripts/verify_xai-elf.sh` | 编译 bare-metal ELF，运行 gem5，比较 GM 输出 |
+| 测试入口 | `npu-tests/scripts/build_gem5.sh`、`npu-tests/scripts/vcu.sh`、`npu-tests/scripts/cube.sh`、`npu-tests/scripts/multinpu.sh` | 按模块编译 bare-metal ELF，运行 gem5，比较 file I/O 输出 |
 
 ## 4. 指令分类
 
@@ -174,10 +174,9 @@ VCU 后端指令扩展集中在 `npu_vcu_operation.*`，外部编码优先放在
 现有验证脚本为：
 
 ```bash
-npu-tests/scripts/verify_xai-elf.sh run-rvv-npu-vcu-smoke
-npu-tests/scripts/verify_xai-elf.sh run-rvv-npu-backpressure
-npu-tests/scripts/verify_xai-elf.sh run-multinpu
-npu-tests/scripts/verify_xai-elf.sh run-cube-smoke
+npu-tests/scripts/vcu.sh
+npu-tests/scripts/cube.sh
+npu-tests/scripts/multinpu.sh
 ```
 
 `run-rvv-npu-vcu-smoke` 验证标准 RVV 编码进入 NPU VCU 后端后的 VADD 数据流，`run-rvv-npu-backpressure` 验证 RVV NPU VCU FIFO 背压观察，`run-multinpu` 验证单 CPU 向多个 NPU 广播命令并产生各自 GM 输出，`run-cube-smoke` 验证 GM/L1/L0/Cube/Fixpipe/UB/GM 数据通路。
