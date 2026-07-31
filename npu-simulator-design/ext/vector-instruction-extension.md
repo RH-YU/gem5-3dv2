@@ -2,7 +2,7 @@
 
 本文说明在当前实现中，如何新增一条由 NPU 执行的 RVV 向量指令。
 
-当前设计里，VCU 不再使用旧的 custom-2 专用编码；外部指令复用标准 RVV，通过 `--rvv-impl=npu` 选择 `arch/riscv/isa/vector/npu/decoder.isa`。MTE、Sync、Cube、Fixpipe、GM file I/O 仍然走 XAI 的 custom-2 通路。
+当前设计里，VCU 不再使用旧的 custom-2 专用编码；外部指令复用标准 RVV，通过 `--rvv-impl=npu` 选择 `arch/riscv/isa/vector/npu/decoder.isa`。MTE、Sync、Cube、Fixpipe、FileIo 仍然走 XAI 的 custom-2 通路。
 
 ## 当前执行路径
 
@@ -171,7 +171,7 @@ rvv_vadd_v3_v1_v2()
 }
 ```
 
-新增测试时，建议保持现有 baremetal 风格：准备 GM file input，XAI MTE 搬运到 UB，执行 RVV NPU VCU 指令，再通过 MTE 和 file I/O 导出结果。
+新增测试时，建议保持现有 baremetal 风格：准备 file input，XAI MTE 搬运到 UB，执行 RVV NPU VCU 指令，再通过 MTE 和 FileIo 导出结果。
 
 ### `npu-tests/scripts/verify_xai-elf.sh`
 

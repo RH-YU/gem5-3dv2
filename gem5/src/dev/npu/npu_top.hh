@@ -3,9 +3,10 @@
 #include "dev/npu/npu_command.hh"
 #include "dev/npu/npu_cube.hh"
 #include "dev/npu/npu_fixpipe.hh"
-#include "dev/npu/npu_gm_file_io.hh"
+#include "dev/npu/npu_file_io.hh"
 #include "dev/npu/npu_mte1.hh"
-#include "dev/npu/npu_mte.hh"
+#include "dev/npu/npu_mte2.hh"
+#include "dev/npu/npu_mte4.hh"
 #include "dev/npu/npu_scheduler.hh"
 #include "dev/npu/npu_storage.hh"
 #include "dev/npu/npu_sync.hh"
@@ -116,8 +117,8 @@ class NpuTop : public sc_core::sc_module
     void fixpipe_thread();
     void execute_fixpipe(const ScheduledCommand &command);
 
-    // Simulator-only GM file I/O engine.
-    void gm_file_io_thread();
+    // Simulator-only file I/O engine.
+    void file_io_thread();
     void WriteDataToNpu(const ScheduledCommand &command);
     void LoadDataFromNpu(const ScheduledCommand &command);
 
@@ -133,13 +134,13 @@ class NpuTop : public sc_core::sc_module
     FlatMemory l0b;
     FlatMemory l0c;
     SchedulerState scheduler;
-    MteEngineState mte4;
+    Mte4State mte4;
     Mte1State mte1;
-    MteEngineState mte2;
+    Mte2State mte2;
     VcuState vcu;
     CubeState cube;
     FixpipeState fixpipe;
-    GmFileIoState gm_file_io;
+    FileIoState file_io;
     SyncState sync;
     sc_core::sc_trace_file *trace_file = nullptr;
     NpuTraceSignals trace_signals;

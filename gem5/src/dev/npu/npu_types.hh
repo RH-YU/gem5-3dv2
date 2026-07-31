@@ -13,7 +13,7 @@ enum class Opcode : uint8_t {
     Mte2 = 2,
     Vcu = 3,
     Sync = 4,
-    GmFileIo = 5,
+    FileIo = 5,
     Mte1 = 6,
     Cube = 7,
     Fixpipe = 8,
@@ -57,7 +57,7 @@ enum class SyncOpcode : uint8_t {
     Wait = 2,
 };
 
-enum class GmFileIoOpcode : uint8_t {
+enum class FileIoOpcode : uint8_t {
     WriteDataToNpu = 0,
     LoadDataFromNpu = 1,
 };
@@ -69,7 +69,7 @@ enum class Engine : uint8_t {
     Vcu,
     Cube,
     Fixpipe,
-    GmFileIo,
+    FileIo,
 };
 
 enum class SyncScope : uint8_t {
@@ -78,7 +78,7 @@ enum class SyncScope : uint8_t {
     Vcu = 2,
     Mte4 = 3,
     Mte2 = 4,
-    GmFileIo = 5,
+    FileIo = 5,
     Mte1 = 6,
     Cube = 7,
     Fixpipe = 8,
@@ -88,7 +88,7 @@ enum class SyncEndpoint : uint8_t {
     Mte4 = 0,
     Mte2 = 1,
     Vcu = 2,
-    GmFileIo = 3,
+    FileIo = 3,
     Cpu = 4,
     Mte1 = 5,
     Cube = 6,
@@ -171,10 +171,10 @@ as_sync_opcode(const NpuCommand &command)
     return static_cast<SyncOpcode>(command.subopcode);
 }
 
-inline GmFileIoOpcode
-as_gm_file_io_opcode(const NpuCommand &command)
+inline FileIoOpcode
+as_file_io_opcode(const NpuCommand &command)
 {
-    return static_cast<GmFileIoOpcode>(command.subopcode);
+    return static_cast<FileIoOpcode>(command.subopcode);
 }
 
 struct VcuContext
@@ -211,22 +211,22 @@ struct NpuConfig
     uint32_t vcu_queue_depth = 32;
     uint32_t cube_queue_depth = 32;
     uint32_t fixpipe_queue_depth = 32;
-    uint32_t gm_file_io_queue_depth = 32;
-    bool enable_sim_gm_file_io = false;
-    std::string sim_gm_file_io_root;
+    uint32_t file_io_queue_depth = 32;
+    bool enable_sim_file_io = false;
+    std::string sim_file_io_root;
     sc_core::sc_time scheduler_dispatch_delay = sc_core::sc_time(1, sc_core::SC_NS);
     sc_core::sc_time mte4_setup_delay = sc_core::sc_time(4, sc_core::SC_NS);
     sc_core::sc_time mte1_setup_delay = sc_core::sc_time(4, sc_core::SC_NS);
     sc_core::sc_time mte2_setup_delay = sc_core::sc_time(4, sc_core::SC_NS);
     sc_core::sc_time cube_setup_delay = sc_core::sc_time(1, sc_core::SC_NS);
     sc_core::sc_time fixpipe_setup_delay = sc_core::sc_time(1, sc_core::SC_NS);
-    sc_core::sc_time gm_file_io_setup_delay = sc_core::sc_time(1, sc_core::SC_NS);
+    sc_core::sc_time file_io_setup_delay = sc_core::sc_time(1, sc_core::SC_NS);
     double mte4_bytes_per_ns = 16.0;
     double mte1_bytes_per_ns = 16.0;
     double mte2_bytes_per_ns = 16.0;
     double cube_fma_per_ns = 128.0;
     double fixpipe_bytes_per_ns = 16.0;
-    double gm_file_io_bytes_per_ns = 16.0;
+    double file_io_bytes_per_ns = 16.0;
     double vcu_bytes_per_ns = 16.0;
     double vadd_elements_per_ns = 16.0;
     std::string vcd_trace_file;

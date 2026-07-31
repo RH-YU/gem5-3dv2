@@ -55,6 +55,27 @@ Mte1TraceState::trace_queue_size(std::size_t queue_size)
 }
 
 void
+NpuTop::execute_mte1(const ScheduledCommand &command)
+{
+    Region destination = Region::Gm;
+    switch (as_mte1_opcode(command.command)) {
+      case Mte1Opcode::L1ToGm:
+        destination = Region::Gm;
+        break;
+      case Mte1Opcode::L1ToUb:
+        destination = Region::Ub;
+        break;
+      case Mte1Opcode::L1ToL0A:
+        destination = Region::L0A;
+        break;
+      case Mte1Opcode::L1ToL0B:
+        destination = Region::L0B;
+        break;
+    }
+    execute_mte(command, Region::L1, destination);
+}
+
+void
 NpuTop::mte1_thread()
 {
     while (true) {

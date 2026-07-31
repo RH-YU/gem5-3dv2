@@ -115,7 +115,7 @@ NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
     SC_THREAD(vcu_thread);
     SC_THREAD(cube_thread);
     SC_THREAD(fixpipe_thread);
-    SC_THREAD(gm_file_io_thread);
+    SC_THREAD(file_io_thread);
 }
 
 bool
@@ -156,7 +156,7 @@ NpuTop::register_trace(sc_core::sc_trace_file *tf, const std::string &scope)
     vcu.trace.register_trace(trace_file, scope + ".vcu");
     cube.trace.register_trace(trace_file, scope + ".cube");
     fixpipe.trace.register_trace(trace_file, scope + ".fixpipe");
-    gm_file_io.trace.register_trace(trace_file, scope + ".gm_file_io");
+    file_io.trace.register_trace(trace_file, scope + ".file_io");
 }
 
 uint64_t
@@ -307,7 +307,7 @@ NpuTop::region_name(Region region)
 const char *
 NpuTop::storage_region_name(const NpuCommand &command) const
 {
-    if (command.opcode != Opcode::GmFileIo)
+    if (command.opcode != Opcode::FileIo)
         return "";
 
     try {

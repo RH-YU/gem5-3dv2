@@ -10,7 +10,7 @@ def parse_integer(value: str) -> int:
     return int(value, 0)
 
 
-def gm_file_name(prefix: str, hart_id: int, index: int) -> str:
+def file_io_file_name(prefix: str, hart_id: int, index: int) -> str:
     return f"{prefix}_{hart_id}_{index}.bin"
 
 
@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate Xai cube smoke random input and expected output binaries."
     )
-    parser.add_argument("--gm-file-io-root", required=True, type=Path)
+    parser.add_argument("--file-io-root", required=True, type=Path)
     parser.add_argument("--hart-id", required=True, type=parse_integer)
     parser.add_argument("--index", required=True, type=parse_integer)
     parser.add_argument("--expected-bin", required=True, type=Path)
@@ -55,7 +55,7 @@ def main() -> None:
     lhs, rhs = generate_inputs()
     expected = matmul_8x16_16x16(lhs, rhs)
 
-    input_file = args.gm_file_io_root / gm_file_name(
+    input_file = args.file_io_root / file_io_file_name(
         "GMInputFile", args.hart_id, args.index
     )
     write_f32le(input_file, lhs + rhs)

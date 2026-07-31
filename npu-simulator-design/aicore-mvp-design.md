@@ -4,12 +4,12 @@
 
 ## 1. 总体目标
 
-当前仿真器在 gem5 RV64 CPU 与 SystemC NPU 之间建立两类提交路径：MTE、Sync、Cube、Fixpipe、GM file I/O 仍通过 RISC-V `custom-2` XAI 编码提交；VCU 使用标准 RVV 指令编码，在 `--rvv-impl=npu` 时由 RVV NPU decoder 构造同一类 `NpuCommand`。NPU 在 SystemC 侧维护 GM、UB、L1、L0A/L0B/L0C、VCU context、各模块 FIFO 和同步 token。
+当前仿真器在 gem5 RV64 CPU 与 SystemC NPU 之间建立两类提交路径：MTE、Sync、Cube、Fixpipe、FileIo 仍通过 RISC-V `custom-2` XAI 编码提交；VCU 使用标准 RVV 指令编码，在 `--rvv-impl=npu` 时由 RVV NPU decoder 构造同一类 `NpuCommand`。NPU 在 SystemC 侧维护 GM、UB、L1、L0A/L0B/L0C、VCU context、各模块 FIFO 和同步 token。
 
 当前支持的基础 VCU 数据流是：
 
 ```text
-GM input file -> GM -> MTE4 -> UB -> RVV vle32/vadd/vse32 -> UB -> MTE2 -> GM -> GM output file
+input file -> GM -> MTE4 -> UB -> RVV vle32/vadd/vse32 -> UB -> MTE2 -> GM -> output file
 ```
 
 当前正在扩展的 AICore 数据流是：
@@ -18,7 +18,7 @@ GM input file -> GM -> MTE4 -> UB -> RVV vle32/vadd/vse32 -> UB -> MTE2 -> GM ->
 GM -> MTE4 -> L1 -> MTE1 -> L0A/L0B -> Cube -> L0C -> Fixpipe -> L1/UB
 ```
 
-其中 GM 文件读写是仿真辅助能力，用于测试数据导入和结果导出，不表示真实硬件文件系统。
+其中 FileIo 是仿真辅助能力，用于在 bin 文件和 NPU 存储单元之间导入/导出数据，不表示真实硬件文件系统。
 
 ## 2. 框架图
 
@@ -28,12 +28,12 @@ GM -> MTE4 -> L1 -> MTE1 -> L0A/L0B -> Cube -> L0C -> Fixpipe -> L1/UB
 
 | 层级 | 主要文件 | 当前职责 |
 |---|---|---|
-| XAI ISA decode | `arch/riscv/isa/decoder.isa`、`formats/xai.isa` | 解码 custom-2 MTE/Sync/Cube/Fixpipe/GM file I/O 指令，读取 GPR 快照，构造 `NpuCommand`，通过 direct-submit 提交 |
+| XAI ISA decode | `arch/riscv/isa/decoder.isa`、`formats/xai.isa` | 解码 custom-2 MTE/Sync/Cube/Fixpipe/FileIo 指令，读取 GPR 快照，构造 `NpuCommand`，通过 direct-submit 提交 |
 | RVV NPU decode | `arch/riscv/isa/vector/npu/decoder.isa`、`formats/xai.isa` | 在 `--rvv-impl=npu` 下把 `vsetvli/vsetvl/vle32.v/vse32.v/vadd.vv` 映射为 VCU `NpuCommand` |
 | gem5 NPU cluster | `dev/npu/npu_command.*`、`npu_cluster.*` | 注册 CPU 可见 NPU command aperture，聚合一个或多个 NPU，处理广播、背压和 CPU sync |
-| SystemC NPU top | `dev/npu/npu_top.*` | 持有 GM、UB、L1、L0A/L0B/L0C、scheduler、MTE、VCU、Cube、Fixpipe、GM file I/O、sync 状态 |
+| SystemC NPU top | `dev/npu/npu_top.*` | 持有 GM、UB、L1、L0A/L0B/L0C、scheduler、MTE、VCU、Cube、Fixpipe、FileIo、sync 状态 |
 | 调度器 | `dev/npu/npu_scheduler.*` | 接收 ingress FIFO，更新 VCU context，按 opcode 路由到目标 engine FIFO |
-| 执行引擎 | `npu_mte*.cc`、`npu_vcu.cc`、`npu_cube.cc`、`npu_fixpipe.cc`、`npu_gm_file_io.cc`、`npu_sync.cc` | 各模块独立 SystemC thread，按 FIFO 顺序执行命令 |
+| 执行引擎 | `npu_mte*.cc`、`npu_vcu.cc`、`npu_cube.cc`、`npu_fixpipe.cc`、`npu_file_io.cc`、`npu_sync.cc` | 各模块独立 SystemC thread，按 FIFO 顺序执行命令 |
 | VCU 操作表 | `npu_vcu_operation.*` | 将 VCU 内部子 opcode 映射到具体 handler，例如日志中的 `vload`、`vstore`、`vadd` |
 | 测试入口 | `npu-tests/scripts/verify_xai-elf.sh` | 编译 bare-metal ELF，运行 gem5，比较 GM 输出 |
 
@@ -42,7 +42,7 @@ GM -> MTE4 -> L1 -> MTE1 -> L0A/L0B -> Cube -> L0C -> Fixpipe -> L1/UB
 当前 `Opcode` 是模块级粗分类，不把每条具体指令都摊平成顶层 opcode：
 
 ```text
-Mte4, Mte1, Mte2, Vcu, Cube, Fixpipe, Sync, GmFileIo
+Mte4, Mte1, Mte2, Vcu, Cube, Fixpipe, Sync, FileIo
 ```
 
 模块内部再用子 opcode 表示具体指令：
@@ -55,7 +55,7 @@ VcuOpcode: Nsetvl, Load, Store, Add
 CubeOpcode: MmaFp32_8x16x16
 FixpipeOpcode: L0CToL1, L0CToUb
 SyncOpcode: Set, Wait
-GmFileIoOpcode: WriteDataToNpu, LoadDataFromNpu
+FileIoOpcode: WriteDataToNpu, LoadDataFromNpu
 ```
 
 标准 RVV `vsetvli/vsetvl` 在 NPU decoder 下会映射为内部 `Opcode::Vcu + VcuOpcode::Nsetvl`。它进入 VCU FIFO，执行时只更新当前 hart 的 VCU context，包括 `nvl` 和 `eew_bytes`，不写回 CPU GPR。`vle32.v/vse32.v/vadd.vv` 分别映射为内部 `Load/Store/Add`。
@@ -95,7 +95,7 @@ Fixpipe 负责将 Cube 输出搬出 L0C：
 同步指令仍使用 `sync_set(src, dst, id)` 和 `sync_wait(src, dst, id)`。当前端点定义为：
 
 ```text
-Mte4, Mte2, Vcu, GmFileIo, Cpu, Mte1, Cube, Fixpipe
+Mte4, Mte2, Vcu, FileIo, Cpu, Mte1, Cube, Fixpipe
 ```
 
 新增模块均拥有自己的 FIFO 和完成状态，因此可以独立作为 sync 的 source 或 destination。
@@ -136,7 +136,7 @@ Cube       -> Cube FIFO
 Fixpipe    -> Fixpipe FIFO
 Sync set   -> source engine FIFO
 Sync wait  -> destination engine FIFO
-GmFileIo   -> GM file I/O FIFO
+FileIo     -> file I/O FIFO
 ```
 
 进入执行 FIFO 的命令会冻结当时的 VCU context。后续 `vsetvli/vsetvl` 不会改变已经排队的 VCU 命令。

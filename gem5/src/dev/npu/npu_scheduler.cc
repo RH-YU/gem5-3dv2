@@ -50,8 +50,8 @@ opcode_name(const NpuCommand &command)
     if (command.opcode == Opcode::Sync)
         return as_sync_opcode(command) == SyncOpcode::Set ? "sync_set" : "sync_wait";
 
-    if (command.opcode == Opcode::GmFileIo) {
-        return as_gm_file_io_opcode(command) == GmFileIoOpcode::LoadDataFromNpu
+    if (command.opcode == Opcode::FileIo) {
+        return as_file_io_opcode(command) == FileIoOpcode::LoadDataFromNpu
                 ? "LoadDataFromNpu"
                 : "WriteDataToNpu";
     }
@@ -73,7 +73,7 @@ opcode_name(const NpuCommand &command)
       case Opcode::Cube: return "cube_unknown";
       case Opcode::Fixpipe: return "fixpipe_unknown";
       case Opcode::Sync: return "sync_unknown";
-      case Opcode::GmFileIo: return "gm_file_io_unknown";
+      case Opcode::FileIo: return "file_io_unknown";
     }
     return "unknown";
 }
@@ -171,10 +171,10 @@ NpuTop::enqueue_scheduled(Engine engine, ScheduledCommand &&scheduled)
         fixpipe.trace.trace_queue_size(fixpipe.queue.size());
         fixpipe.event.notify(sc_core::SC_ZERO_TIME);
         return true;
-      case Engine::GmFileIo:
-        gm_file_io.queue.push_back(std::move(scheduled));
-        gm_file_io.trace.trace_queue_size(gm_file_io.queue.size());
-        gm_file_io.event.notify(sc_core::SC_ZERO_TIME);
+      case Engine::FileIo:
+        file_io.queue.push_back(std::move(scheduled));
+        file_io.trace.trace_queue_size(file_io.queue.size());
+        file_io.event.notify(sc_core::SC_ZERO_TIME);
         return true;
     }
     return false;
@@ -191,7 +191,7 @@ NpuTop::route_engine(const NpuCommand &command) const
       case Opcode::Cube: return Engine::Cube;
       case Opcode::Fixpipe: return Engine::Fixpipe;
       case Opcode::Sync: return sync_route_engine(command);
-      case Opcode::GmFileIo: return Engine::GmFileIo;
+      case Opcode::FileIo: return Engine::FileIo;
     }
     throw std::logic_error("opcode has no scheduler descriptor");
 }
@@ -215,7 +215,7 @@ NpuTop::trace_command(const NpuCommand &command) const
               << " rd_value=" << command.rd_value
               << " rs1_value=" << command.rs1_value
               << " rs2_value=" << command.rs2_value;
-    if (command.opcode == Opcode::GmFileIo)
+    if (command.opcode == Opcode::FileIo)
         std::cout << " storage_region=" << storage_region_name(command);
     std::cout
               << " sync_src=" << static_cast<unsigned>(command.sync_src)
@@ -235,7 +235,7 @@ NpuTop::engine_has_space(Engine engine) const
       case Engine::Cube: return cube.queue.size() < config.cube_queue_depth;
       case Engine::Fixpipe:
         return fixpipe.queue.size() < config.fixpipe_queue_depth;
-      case Engine::GmFileIo: return gm_file_io.queue.size() < config.gm_file_io_queue_depth;
+      case Engine::FileIo: return file_io.queue.size() < config.file_io_queue_depth;
     }
     return false;
 }
@@ -250,7 +250,7 @@ NpuTop::sync_route_engine(const NpuCommand &command) const
       case SyncEndpoint::Mte4: return Engine::Mte4;
       case SyncEndpoint::Mte2: return Engine::Mte2;
       case SyncEndpoint::Vcu: return Engine::Vcu;
-      case SyncEndpoint::GmFileIo: return Engine::GmFileIo;
+      case SyncEndpoint::FileIo: return Engine::FileIo;
       case SyncEndpoint::Mte1: return Engine::Mte1;
       case SyncEndpoint::Cube: return Engine::Cube;
       case SyncEndpoint::Fixpipe: return Engine::Fixpipe;
@@ -294,7 +294,7 @@ NpuTop::scope_includes(SyncScope scope, Engine engine) const
       case SyncScope::Vcu: return engine == Engine::Vcu;
       case SyncScope::Mte4: return engine == Engine::Mte4;
       case SyncScope::Mte2: return engine == Engine::Mte2;
-      case SyncScope::GmFileIo: return engine == Engine::GmFileIo;
+      case SyncScope::FileIo: return engine == Engine::FileIo;
       case SyncScope::Mte1: return engine == Engine::Mte1;
       case SyncScope::Cube: return engine == Engine::Cube;
       case SyncScope::Fixpipe: return engine == Engine::Fixpipe;

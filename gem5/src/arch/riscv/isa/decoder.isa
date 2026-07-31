@@ -2565,7 +2565,7 @@ decode QUADRANT {
                 }
             }
             0x4: decode FUNCT7 {
-                format XaiGmFileIoOp {
+                format XaiFileIoOp {
                     0x00: write_data_to_npu(WriteDataToNpu);
                     0x01: load_data_from_npu(LoadDataFromNpu);
                 }

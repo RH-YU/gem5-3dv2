@@ -9,7 +9,7 @@ def parse_integer(value: str) -> int:
     return int(value, 0)
 
 
-def gm_input_file_name(hart_id: int, index: int) -> str:
+def file_io_input_file_name(hart_id: int, index: int) -> str:
     return f"GMInputFile_{hart_id}_{index}.bin"
 
 
@@ -24,22 +24,22 @@ def parse_args() -> argparse.Namespace:
         description="Generate Xai VCU smoke input and expected output binaries."
     )
     parser.add_argument(
-        "--gm-file-io-root",
+        "--file-io-root",
         required=True,
         type=Path,
-        help="Directory containing simulator GM file I/O binaries.",
+        help="Directory containing simulator file I/O binaries.",
     )
     parser.add_argument(
         "--hart-id",
         required=True,
         type=parse_integer,
-        help="Hart id encoded in the GM input filename.",
+        help="Hart id encoded in the input filename.",
     )
     parser.add_argument(
         "--index",
         required=True,
         type=parse_integer,
-        help="Per-hart input index encoded in the GM input filename.",
+        help="Per-hart input index encoded in the input filename.",
     )
     parser.add_argument(
         "--expected-bin",
@@ -56,7 +56,9 @@ def main() -> None:
     rhs = [10, 20, 30, 40]
     expected = [left + right for left, right in zip(lhs, rhs)]
 
-    write_data_bin = args.gm_file_io_root / gm_input_file_name(args.hart_id, args.index)
+    write_data_bin = (
+        args.file_io_root / file_io_input_file_name(args.hart_id, args.index)
+    )
     write_u32le(write_data_bin, lhs + rhs)
     write_u32le(args.expected_bin, expected)
 

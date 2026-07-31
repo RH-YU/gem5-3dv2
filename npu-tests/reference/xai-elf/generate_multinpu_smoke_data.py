@@ -16,10 +16,10 @@ def parse_args() -> argparse.Namespace:
         description="Generate single-CPU multi-NPU Xai smoke data."
     )
     parser.add_argument(
-        "--gm-file-io-root",
+        "--file-io-root",
         required=True,
         type=Path,
-        help="Root directory containing per-NPU GM file I/O directories.",
+        help="Root directory containing per-NPU file I/O directories.",
     )
     parser.add_argument(
         "--expected-root",
@@ -49,7 +49,7 @@ def main() -> None:
         expected = [left + right for left, right in zip(lhs, rhs)]
 
         input_path = (
-            args.gm_file_io_root
+            args.file_io_root
             / f"npu{npu_id}"
             / "GMInputFile_0_0.bin"
         )

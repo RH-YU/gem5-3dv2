@@ -38,10 +38,10 @@ class NpuCluster(SystemC_ScModule):
     vcu_queue_depth = Param.UInt32(32, "VCU queue depth")
     cube_queue_depth = Param.UInt32(32, "Cube queue depth")
     fixpipe_queue_depth = Param.UInt32(32, "Fixpipe queue depth")
-    gm_file_io_queue_depth = Param.UInt32(32, "Simulator GM file I/O queue depth")
+    file_io_queue_depth = Param.UInt32(32, "Simulator file I/O queue depth")
 
-    enable_sim_gm_file_io = Param.Bool(False, "Enable simulator-only GM file I/O commands")
-    sim_gm_file_io_root = Param.String("", "Root directory for GM file I/O fixture files")
+    enable_sim_file_io = Param.Bool(False, "Enable simulator-only file I/O commands")
+    sim_file_io_root = Param.String("", "Root directory for file I/O fixture files")
 
     scheduler_dispatch_delay = Param.Latency("1ns", "Scheduler dispatch delay")
     mte4_setup_delay = Param.Latency("4ns", "MTE4 setup delay")
@@ -49,14 +49,14 @@ class NpuCluster(SystemC_ScModule):
     mte2_setup_delay = Param.Latency("4ns", "MTE2 setup delay")
     cube_setup_delay = Param.Latency("1ns", "Cube setup delay")
     fixpipe_setup_delay = Param.Latency("1ns", "Fixpipe setup delay")
-    gm_file_io_setup_delay = Param.Latency("1ns", "GM file I/O setup delay")
+    file_io_setup_delay = Param.Latency("1ns", "file I/O setup delay")
 
     mte4_bytes_per_ns = Param.Float(16.0, "MTE4 transfer bandwidth")
     mte1_bytes_per_ns = Param.Float(16.0, "MTE1 transfer bandwidth")
     mte2_bytes_per_ns = Param.Float(16.0, "MTE2 transfer bandwidth")
     cube_fma_per_ns = Param.Float(128.0, "Cube FP32 FMA throughput")
     fixpipe_bytes_per_ns = Param.Float(16.0, "Fixpipe transfer bandwidth")
-    gm_file_io_bytes_per_ns = Param.Float(16.0, "GM file I/O bandwidth")
+    file_io_bytes_per_ns = Param.Float(16.0, "file I/O bandwidth")
     vcu_bytes_per_ns = Param.Float(16.0, "VCU load/store bandwidth")
     vadd_elements_per_ns = Param.Float(16.0, "VCU vector-add throughput")
 

@@ -41,11 +41,11 @@ NPU_SIGNALS = [
     "fixpipe.busy",
     "fixpipe.queue_size",
     "fixpipe.instruction",
-    "gm_file_io.start_event",
-    "gm_file_io.done_event",
-    "gm_file_io.busy",
-    "gm_file_io.queue_size",
-    "gm_file_io.instruction",
+    "file_io.start_event",
+    "file_io.done_event",
+    "file_io.busy",
+    "file_io.queue_size",
+    "file_io.instruction",
 ]
 
 

@@ -15,7 +15,7 @@
 namespace npu_mvp
 {
 
-struct GmFileIoTraceSignals
+struct FileIoTraceSignals
 {
     bool start_event = false;
     bool done_event = false;
@@ -24,7 +24,7 @@ struct GmFileIoTraceSignals
     sc_dt::sc_bv<32> instruction = sc_dt::sc_bv<32>(0);
 };
 
-struct GmFileIoTraceState
+struct FileIoTraceState
 {
     void register_trace(sc_core::sc_trace_file *trace_file,
                         const std::string &scope);
@@ -33,15 +33,15 @@ struct GmFileIoTraceState
     void trace_queue_size(std::size_t queue_size);
 
     sc_core::sc_trace_file *trace_file = nullptr;
-    GmFileIoTraceSignals signals;
+    FileIoTraceSignals signals;
 };
 
-struct GmFileIoState
+struct FileIoState
 {
     std::deque<ScheduledCommand> queue;
     bool busy = false;
     sc_core::sc_event event;
-    GmFileIoTraceState trace;
+    FileIoTraceState trace;
 };
 
 } // namespace npu_mvp

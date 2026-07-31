@@ -45,22 +45,22 @@ make_config(const gem5::NpuClusterParams &params)
     config.vcu_queue_depth = params.vcu_queue_depth;
     config.cube_queue_depth = params.cube_queue_depth;
     config.fixpipe_queue_depth = params.fixpipe_queue_depth;
-    config.gm_file_io_queue_depth = params.gm_file_io_queue_depth;
-    config.enable_sim_gm_file_io = params.enable_sim_gm_file_io;
-    config.sim_gm_file_io_root = params.sim_gm_file_io_root;
+    config.file_io_queue_depth = params.file_io_queue_depth;
+    config.enable_sim_file_io = params.enable_sim_file_io;
+    config.sim_file_io_root = params.sim_file_io_root;
     config.scheduler_dispatch_delay = to_sc_time(params.scheduler_dispatch_delay);
     config.mte4_setup_delay = to_sc_time(params.mte4_setup_delay);
     config.mte1_setup_delay = to_sc_time(params.mte1_setup_delay);
     config.mte2_setup_delay = to_sc_time(params.mte2_setup_delay);
     config.cube_setup_delay = to_sc_time(params.cube_setup_delay);
     config.fixpipe_setup_delay = to_sc_time(params.fixpipe_setup_delay);
-    config.gm_file_io_setup_delay = to_sc_time(params.gm_file_io_setup_delay);
+    config.file_io_setup_delay = to_sc_time(params.file_io_setup_delay);
     config.mte4_bytes_per_ns = params.mte4_bytes_per_ns;
     config.mte1_bytes_per_ns = params.mte1_bytes_per_ns;
     config.mte2_bytes_per_ns = params.mte2_bytes_per_ns;
     config.cube_fma_per_ns = params.cube_fma_per_ns;
     config.fixpipe_bytes_per_ns = params.fixpipe_bytes_per_ns;
-    config.gm_file_io_bytes_per_ns = params.gm_file_io_bytes_per_ns;
+    config.file_io_bytes_per_ns = params.file_io_bytes_per_ns;
     config.vcu_bytes_per_ns = params.vcu_bytes_per_ns;
     config.vadd_elements_per_ns = params.vadd_elements_per_ns;
     config.vcd_trace_file = params.vcd_trace_file;
@@ -125,9 +125,9 @@ NpuCluster::config_for_npu(const NpuConfig &base_config, uint8_t npu_id,
 {
     NpuConfig config = base_config;
     config.npu_id = npu_id;
-    if (npu_count > 1 && !config.sim_gm_file_io_root.empty()) {
-        config.sim_gm_file_io_root =
-                (std::filesystem::path(config.sim_gm_file_io_root) /
+    if (npu_count > 1 && !config.sim_file_io_root.empty()) {
+        config.sim_file_io_root =
+                (std::filesystem::path(config.sim_file_io_root) /
                  ("npu" + std::to_string(npu_id))).string();
     }
     return config;

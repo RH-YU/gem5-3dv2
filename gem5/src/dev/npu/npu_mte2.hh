@@ -15,7 +15,7 @@
 namespace npu_mvp
 {
 
-struct MteTraceSignals
+struct Mte2TraceSignals
 {
     bool start_event = false;
     bool done_event = false;
@@ -24,7 +24,7 @@ struct MteTraceSignals
     sc_dt::sc_bv<32> instruction = sc_dt::sc_bv<32>(0);
 };
 
-struct MteTraceState
+struct Mte2TraceState
 {
     void register_trace(sc_core::sc_trace_file *trace_file,
                         const std::string &scope);
@@ -33,17 +33,15 @@ struct MteTraceState
     void trace_queue_size(std::size_t queue_size);
 
     sc_core::sc_trace_file *trace_file = nullptr;
-    MteTraceSignals signals;
+    Mte2TraceSignals signals;
 };
 
-struct MteEngineState
+struct Mte2State
 {
     std::deque<ScheduledCommand> queue;
     bool busy = false;
     sc_core::sc_event event;
-    MteTraceState trace;
+    Mte2TraceState trace;
 };
 
 } // namespace npu_mvp
-
-#include "dev/npu/npu_top.hh"

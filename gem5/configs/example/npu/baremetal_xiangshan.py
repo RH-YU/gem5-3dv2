@@ -62,14 +62,14 @@ def add_local_options(parser):
         help="Number of NPU instances behind the direct-dispatch target.",
     )
     parser.add_argument(
-        "--npu-enable-sim-gm-file-io",
+        "--npu-enable-sim-file-io",
         action="store_true",
-        help="Enable the simulator-only NPU GM file I/O commands.",
+        help="Enable the simulator-only NPU file I/O commands.",
     )
     parser.add_argument(
-        "--npu-sim-gm-file-io-root",
+        "--npu-sim-file-io-root",
         default="",
-        help="Root directory for simulator-only NPU GM file I/O fixture files.",
+        help="Root directory for simulator-only NPU file I/O fixture files.",
     )
     parser.add_argument(
         "--dramsim3-output-dir",
@@ -275,8 +275,8 @@ def attach_npu(system, args):
     system.npu = NpuCluster(
         npu_dispatch_id=dispatch_id,
         npu_count=args.npu_count,
-        enable_sim_gm_file_io=args.npu_enable_sim_gm_file_io,
-        sim_gm_file_io_root=args.npu_sim_gm_file_io_root,
+        enable_sim_file_io=args.npu_enable_sim_file_io,
+        sim_file_io_root=args.npu_sim_file_io_root,
         vcd_trace_file=args.npu_vcd_trace_file,
         vcd_trace_cycle_ticks=cpu_cycle_ticks,
     )
