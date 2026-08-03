@@ -31,8 +31,6 @@ NiuTraceState::register_trace(sc_core::sc_trace_file *tf,
     if (trace_file == nullptr)
         return;
 
-    sc_core::sc_trace(trace_file, signals.start_event, scope + ".start_event");
-    sc_core::sc_trace(trace_file, signals.done_event, scope + ".done_event");
     sc_core::sc_trace(trace_file, signals.packet_sent_event,
                       scope + ".packet_sent_event");
     sc_core::sc_trace(trace_file, signals.packet_received_event,
@@ -54,7 +52,6 @@ NiuTraceState::trace_start(uint32_t raw_instruction)
     if (trace_file == nullptr)
         return;
 
-    signals.start_event = !signals.start_event;
     signals.busy = true;
     signals.instruction = raw_instruction;
 }
@@ -65,7 +62,6 @@ NiuTraceState::trace_done()
     if (trace_file == nullptr)
         return;
 
-    signals.done_event = !signals.done_event;
     signals.busy = false;
     signals.instruction = 0;
 }
@@ -75,7 +71,7 @@ NiuTraceState::trace_packet_sent()
 {
     if (trace_file == nullptr)
         return;
-    signals.packet_sent_event = !signals.packet_sent_event;
+    signals.packet_sent_event = true;
 }
 
 void
@@ -83,7 +79,19 @@ NiuTraceState::trace_packet_received()
 {
     if (trace_file == nullptr)
         return;
-    signals.packet_received_event = !signals.packet_received_event;
+    signals.packet_received_event = true;
+}
+
+void
+NiuTraceState::clear_packet_sent()
+{
+    signals.packet_sent_event = false;
+}
+
+void
+NiuTraceState::clear_packet_received()
+{
+    signals.packet_received_event = false;
 }
 
 void
@@ -116,6 +124,34 @@ NiuTraceState::trace_rx_queue_size(std::size_t queue_size)
     if (trace_file == nullptr)
         return;
     signals.rx_queue_size = static_cast<uint32_t>(queue_size);
+}
+
+void
+NiuState::trace_packet_sent_pulse(const sc_core::sc_time &pulse_width)
+{
+    trace.trace_packet_sent();
+    packet_sent_clear_event.cancel();
+    packet_sent_clear_event.notify(pulse_width);
+}
+
+void
+NiuState::trace_packet_received_pulse(const sc_core::sc_time &pulse_width)
+{
+    trace.trace_packet_received();
+    packet_received_clear_event.cancel();
+    packet_received_clear_event.notify(pulse_width);
+}
+
+void
+NiuState::clear_packet_sent_trace()
+{
+    trace.clear_packet_sent();
+}
+
+void
+NiuState::clear_packet_received_trace()
+{
+    trace.clear_packet_received();
 }
 
 NpuTop::Region
@@ -175,7 +211,8 @@ NpuTop::enqueue_niu_packet(const NiuPacket &packet)
 
     niu.tx_queue.push_back(packet);
     niu.trace.trace_tx_queue_size(niu.tx_queue.size());
-    niu.trace.trace_packet_sent();
+    niu.trace_packet_sent_pulse(sc_core::sc_time::from_value(
+            active_cpu_cycle_ticks(config.vcd_trace_cycle_ticks)));
 }
 
 void
@@ -273,7 +310,7 @@ NpuTop::niu_tx_thread()
 }
 
 void
-NpuTop::write_niu_packet(const NiuPacket &packet)
+NpuTop::decode_niu_packet(const NiuPacket &packet)
 {
     if (packet.kind == NiuPacket::Kind::Sync) {
         signal_sync_token(packet.sync_src, packet.sync_dst, packet.sync_id,
@@ -303,7 +340,7 @@ NpuTop::niu_rx_thread()
             niu.trace.trace_rx_queue_size(niu.rx_queue.size());
             bool wrote_packet = true;
             try {
-                write_niu_packet(packet);
+                decode_niu_packet(packet);
             } catch (const std::exception &error) {
                 wrote_packet = false;
                 std::cout << "NPU[" << static_cast<unsigned>(config.npu_id)
@@ -312,11 +349,24 @@ NpuTop::niu_rx_thread()
                           << " message=\"" << error.what() << "\""
                           << std::endl;
             }
-            niu.trace.trace_packet_received();
+            niu.trace_packet_received_pulse(sc_core::sc_time::from_value(
+                    active_cpu_cycle_ticks(config.vcd_trace_cycle_ticks)));
             if (wrote_packet && noc != nullptr)
                 noc->ack_niu_packet(packet);
         }
     }
+}
+
+void
+NpuTop::clear_niu_packet_sent_trace()
+{
+    niu.clear_packet_sent_trace();
+}
+
+void
+NpuTop::clear_niu_packet_received_trace()
+{
+    niu.clear_packet_received_trace();
 }
 
 bool

@@ -143,7 +143,7 @@ check_niu_smoke_log()
 
     check_xai_vcd "NIU/NOC smoke" "$vcd_file" "$npu_count" "$log_file"
     check_vcd_signal_asserted "NIU/NOC smoke" "$vcd_file" \
-        "npu0.niu.start_event" "$log_file"
+        "npu0.niu.packet_sent_event" "$log_file"
     check_vcd_signal_asserted "NIU/NOC smoke" "$vcd_file" \
         "npu1.niu.packet_received_event" "$log_file"
     check_vcd_signal_asserted "NIU/NOC smoke" "$vcd_file" \

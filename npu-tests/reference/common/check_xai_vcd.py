@@ -46,8 +46,6 @@ NPU_SIGNALS = [
     "file_io.busy",
     "file_io.queue_size",
     "file_io.instruction",
-    "niu.start_event",
-    "niu.done_event",
     "niu.packet_sent_event",
     "niu.packet_received_event",
     "niu.ack_event",

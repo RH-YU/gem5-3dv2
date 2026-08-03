@@ -104,6 +104,12 @@ NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
     SC_METHOD(dispatch_ingress);
     sensitive << scheduler.dispatch_event;
     dont_initialize();
+    SC_METHOD(clear_niu_packet_sent_trace);
+    sensitive << niu.packet_sent_clear_event;
+    dont_initialize();
+    SC_METHOD(clear_niu_packet_received_trace);
+    sensitive << niu.packet_received_clear_event;
+    dont_initialize();
     SC_THREAD(mte4_thread);
     SC_THREAD(mte1_thread);
     SC_THREAD(mte2_thread);

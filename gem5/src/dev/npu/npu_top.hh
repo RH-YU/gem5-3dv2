@@ -85,6 +85,8 @@ class NpuTop : public sc_core::sc_module, public NocEndpoint
     void trace_sync_done();
     void trace_fault();
     void trace_scheduler_queue_size();
+    void clear_niu_packet_sent_trace();
+    void clear_niu_packet_received_trace();
     bool engine_has_space(Engine engine) const;
     Engine sync_route_engine(const NpuCommand &command) const;
     bool sync_complete_for_command(const NpuCommand &command) const;
@@ -149,7 +151,7 @@ class NpuTop : public sc_core::sc_module, public NocEndpoint
     void niu_rx_thread();
     void execute_niu(const ScheduledCommand &command);
     void enqueue_niu_packet(const NiuPacket &packet);
-    void write_niu_packet(const NiuPacket &packet);
+    void decode_niu_packet(const NiuPacket &packet);
     Region niu_destination_region(const NpuCommand &command) const;
     uint32_t niu_packet_count(uint64_t byte_count) const;
 
