@@ -2563,6 +2563,10 @@ decode QUADRANT {
                     0x01: sync_set(Set);
                     0x02: sync_wait(Wait);
                 }
+                format XaiRemoteSyncOp {
+                    0x03: remote_sync_set(RemoteSet);
+                    0x04: remote_sync_wait(RemoteWait);
+                }
             }
             0x4: decode FUNCT7 {
                 format XaiFileIoOp {
@@ -2587,6 +2591,13 @@ decode QUADRANT {
             0x6: decode FUNCT7 {
                 format XaiCubeOp {
                     0x00: cube_mma_fp32(MmaFp32_8x16x16);
+                    0x01: cube_mma_fp16_fp32(MmaFp16Fp32_8x16x16);
+                }
+            }
+            0x7: decode FUNCT7 {
+                format XaiNiuOp {
+                    0x00: niu_ub_to_remote_ub(UbToRemoteUb);
+                    0x01: niu_ub_to_remote_gm(UbToRemoteGm);
                 }
             }
         }

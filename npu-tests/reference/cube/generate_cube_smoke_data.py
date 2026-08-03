@@ -19,6 +19,11 @@ def write_f32le(path: Path, values: list[float]) -> None:
     path.write_bytes(b"".join(struct.pack("<f", value) for value in values))
 
 
+def write_f16le(path: Path, values: list[float]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"".join(struct.pack("<e", value) for value in values))
+
+
 def generate_inputs() -> tuple[list[float], list[float]]:
     rng = random.Random(0x43425545)
     m, k, n = 8, 16, 16
@@ -47,6 +52,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hart-id", required=True, type=parse_integer)
     parser.add_argument("--index", required=True, type=parse_integer)
     parser.add_argument("--expected-bin", required=True, type=Path)
+    parser.add_argument(
+        "--input-dtype",
+        choices=("fp32", "fp16"),
+        default="fp32",
+        help="Input fixture element type. Expected output is always fp32.",
+    )
     return parser.parse_args()
 
 
@@ -58,7 +69,10 @@ def main() -> None:
     input_file = args.file_io_root / file_io_file_name(
         "GMInputFile", args.hart_id, args.index
     )
-    write_f32le(input_file, lhs + rhs)
+    if args.input_dtype == "fp16":
+        write_f16le(input_file, lhs + rhs)
+    else:
+        write_f32le(input_file, lhs + rhs)
     write_f32le(args.expected_bin, expected)
 
 

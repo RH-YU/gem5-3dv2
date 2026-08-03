@@ -63,10 +63,16 @@ constexpr uint64_t cube_m = 8;
 constexpr uint64_t cube_k = 16;
 constexpr uint64_t cube_n = 16;
 constexpr uint64_t fp32_bytes = sizeof(float);
-constexpr uint64_t cube_a_bytes = cube_m * cube_k * fp32_bytes;
-constexpr uint64_t cube_b_bytes = cube_k * cube_n * fp32_bytes;
 constexpr uint64_t cube_c_bytes = cube_m * cube_n * fp32_bytes;
 constexpr uint64_t cube_fma_count = cube_m * cube_k * cube_n;
+
+uint16_t
+read_u16(const std::vector<uint8_t> &data, uint64_t element)
+{
+    const uint64_t byte_offset = element * 2;
+    return static_cast<uint16_t>(data[byte_offset]) |
+           (static_cast<uint16_t>(data[byte_offset + 1]) << 8);
+}
 
 float
 read_f32(const std::vector<uint8_t> &data, uint64_t element)
@@ -76,10 +82,75 @@ read_f32(const std::vector<uint8_t> &data, uint64_t element)
     return value;
 }
 
+float
+read_f16(const std::vector<uint8_t> &data, uint64_t element)
+{
+    const uint16_t half = read_u16(data, element);
+    const uint32_t sign = static_cast<uint32_t>(half & 0x8000U) << 16;
+    int32_t exponent = static_cast<int32_t>((half >> 10) & 0x1FU);
+    uint32_t fraction = static_cast<uint32_t>(half & 0x03FFU);
+
+    uint32_t bits = 0;
+    if (exponent == 0) {
+        if (fraction == 0) {
+            bits = sign;
+        } else {
+            exponent = -14;
+            while ((fraction & 0x0400U) == 0) {
+                fraction <<= 1;
+                --exponent;
+            }
+            fraction &= 0x03FFU;
+            bits = sign | (static_cast<uint32_t>(exponent + 127) << 23) |
+                   (fraction << 13);
+        }
+    } else if (exponent == 0x1FU) {
+        bits = sign | 0x7F800000U | (fraction << 13);
+    } else {
+        bits = sign | (static_cast<uint32_t>(exponent + (127 - 15)) << 23) |
+               (fraction << 13);
+    }
+
+    float value = 0.0F;
+    std::memcpy(&value, &bits, fp32_bytes);
+    return value;
+}
+
 void
 write_f32(std::vector<uint8_t> &data, uint64_t element, float value)
 {
     std::memcpy(data.data() + element * fp32_bytes, &value, fp32_bytes);
+}
+
+struct CubeShape
+{
+    uint64_t a_bytes = 0;
+    uint64_t b_bytes = 0;
+    uint64_t c_bytes = cube_c_bytes;
+    uint64_t input_element_bytes = fp32_bytes;
+};
+
+CubeShape
+cube_shape(CubeOpcode opcode)
+{
+    switch (opcode) {
+      case CubeOpcode::MmaFp32_8x16x16:
+        return {cube_m * cube_k * fp32_bytes, cube_k * cube_n * fp32_bytes};
+      case CubeOpcode::MmaFp16Fp32_8x16x16:
+        return {cube_m * cube_k * 2, cube_k * cube_n * 2, cube_c_bytes, 2};
+    }
+    throw std::invalid_argument("unsupported cube opcode");
+}
+
+float
+read_cube_input(const std::vector<uint8_t> &data, uint64_t element,
+                uint64_t input_element_bytes)
+{
+    if (input_element_bytes == fp32_bytes)
+        return read_f32(data, element);
+    if (input_element_bytes == 2)
+        return read_f16(data, element);
+    throw std::invalid_argument("unsupported cube input element size");
 }
 
 } // anonymous namespace
@@ -87,25 +158,27 @@ write_f32(std::vector<uint8_t> &data, uint64_t element, float value)
 void
 NpuTop::execute_cube(const ScheduledCommand &command)
 {
-    if (as_cube_opcode(command.command) != CubeOpcode::MmaFp32_8x16x16)
-        throw std::invalid_argument("unsupported cube opcode");
+    const CubeOpcode opcode = as_cube_opcode(command.command);
+    const CubeShape shape = cube_shape(opcode);
 
-    const auto a_address = decode(command.command.rs1_value, cube_a_bytes,
+    const auto a_address = decode(command.command.rs1_value, shape.a_bytes,
                                   Region::L0A);
-    const auto b_address = decode(command.command.rs2_value, cube_b_bytes,
+    const auto b_address = decode(command.command.rs2_value, shape.b_bytes,
                                   Region::L0B);
     const auto c_address = decode(command.command.rd_value, cube_c_bytes,
                                   Region::L0C);
-    const auto a = read(a_address.region, a_address.local_address, cube_a_bytes);
-    const auto b = read(b_address.region, b_address.local_address, cube_b_bytes);
+    const auto a = read(a_address.region, a_address.local_address, shape.a_bytes);
+    const auto b = read(b_address.region, b_address.local_address, shape.b_bytes);
     std::vector<uint8_t> c(cube_c_bytes, 0);
 
     for (uint64_t row = 0; row < cube_m; ++row) {
         for (uint64_t col = 0; col < cube_n; ++col) {
             float sum = 0.0F;
             for (uint64_t inner = 0; inner < cube_k; ++inner) {
-                sum += read_f32(a, row * cube_k + inner) *
-                       read_f32(b, inner * cube_n + col);
+                sum += read_cube_input(a, row * cube_k + inner,
+                                       shape.input_element_bytes) *
+                       read_cube_input(b, inner * cube_n + col,
+                                       shape.input_element_bytes);
             }
             write_f32(c, row * cube_n + col, sum);
         }
