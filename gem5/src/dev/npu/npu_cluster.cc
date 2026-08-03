@@ -107,6 +107,7 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
         const std::string npu_name = "npu" + std::to_string(npu_id);
         npus.push_back(std::make_unique<NpuTop>(
                 npu_name.c_str(), config_for_npu(config, npu_id, npu_count)));
+        npus.back()->npu_clk(npu_clock);
         npus.back()->register_trace(trace_file, npu_name);
     }
 }

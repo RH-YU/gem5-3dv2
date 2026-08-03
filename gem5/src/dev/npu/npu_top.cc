@@ -46,7 +46,7 @@ require_non_overlapping(uint64_t first_base, uint64_t first_size,
 } // anonymous namespace
 
 NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
-    : sc_core::sc_module(name), config(std::move(config)),
+    : sc_core::sc_module(name), npu_clk("npu_clk"), config(std::move(config)),
       gm(this->config.gm_size, this->config.gm_page_size), ub(this->config.ub_size),
       l1(this->config.l1_size), l0a(this->config.l0a_size),
       l0b(this->config.l0b_size), l0c(this->config.l0c_size),
@@ -116,6 +116,24 @@ NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
     SC_THREAD(cube_thread);
     SC_THREAD(fixpipe_thread);
     SC_THREAD(file_io_thread);
+}
+
+uint64_t
+NpuTop::delay_to_npu_cycles(const sc_core::sc_time &delay) const
+{
+    const uint64_t cycle_ticks =
+            active_cpu_cycle_ticks(config.vcd_trace_cycle_ticks);
+    const uint64_t delay_ticks = delay.value();
+    if (delay_ticks == 0)
+        return 0;
+    return (delay_ticks + cycle_ticks - 1) / cycle_ticks;
+}
+
+void
+NpuTop::wait_npu_cycles(uint64_t cycles)
+{
+    for (uint64_t cycle = 0; cycle < cycles; ++cycle)
+        wait(npu_clk.posedge_event());
 }
 
 bool

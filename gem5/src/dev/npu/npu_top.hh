@@ -18,9 +18,11 @@
 #include <string>
 #include <vector>
 
+#include "systemc/ext/channel/sc_in.hh"
 #include "systemc/ext/core/sc_event.hh"
 #include "systemc/ext/core/sc_module.hh"
 #include "systemc/ext/core/sc_module_name.hh"
+#include "systemc/ext/core/sc_time.hh"
 
 namespace npu_mvp
 {
@@ -31,6 +33,8 @@ class NpuTop : public sc_core::sc_module
     SC_HAS_PROCESS(NpuTop);
 
     NpuTop(sc_core::sc_module_name name, NpuConfig config);
+
+    sc_core::sc_in<bool> npu_clk;
 
     bool can_accept(const NpuCommand &command) const;
     SubmitResult submit(const NpuCommand &command);
@@ -101,6 +105,8 @@ class NpuTop : public sc_core::sc_module
     void execute_mte2(const ScheduledCommand &command);
 
     // VCU engine.
+    uint64_t delay_to_npu_cycles(const sc_core::sc_time &delay) const;
+    void wait_npu_cycles(uint64_t cycles);
     void vcu_thread();
     void execute_vcu_nsetvl(const ScheduledCommand &command);
     void execute_vcu(const ScheduledCommand &command);

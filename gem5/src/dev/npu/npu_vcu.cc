@@ -105,7 +105,8 @@ NpuTop::vcu_thread()
             if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
             } else if (as_vcu_opcode(command.command) == VcuOpcode::Nsetvl) {
-                wait(config.scheduler_dispatch_delay);
+                wait_npu_cycles(delay_to_npu_cycles(
+                        config.scheduler_dispatch_delay));
                 try {
                     execute_vcu_nsetvl(command);
                 } catch (const std::exception &error) {
@@ -116,8 +117,9 @@ NpuTop::vcu_thread()
                     const auto &payload = *command.vcu_payload;
                     const uint64_t work = vcu_work_count(config, payload);
                     const auto &operation = *payload.operation;
-                    wait(transfer_delay(work, config.*(operation.work_rate),
-                                        sc_core::SC_ZERO_TIME));
+                    wait_npu_cycles(delay_to_npu_cycles(
+                            transfer_delay(work, config.*(operation.work_rate),
+                                           sc_core::SC_ZERO_TIME)));
                     execute_vcu(command);
                 } catch (const std::exception &error) {
                     fault(command, error.what());
