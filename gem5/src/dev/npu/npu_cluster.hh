@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dev/npu/npu_command.hh"
+#include "dev/npu/npu_noc.hh"
 #include "dev/npu/npu_top.hh"
 #include "dev/npu/npu_trace.hh"
 
@@ -30,6 +31,7 @@ class NpuCluster : public sc_core::sc_module, public NpuCommandTarget
 
   private:
     void clear_cpu_commit_trace();
+    void noc_tick();
     void trace_cpu_command();
     void trace_cpu_backpressure();
     static NpuConfig config_for_npu(const NpuConfig &base_config,
@@ -43,6 +45,7 @@ class NpuCluster : public sc_core::sc_module, public NpuCommandTarget
     sc_core::sc_clock npu_clock;
     sc_core::sc_event cpu_commit_clear_event;
     NpuClusterTraceSignals trace_signals;
+    NocState noc;
     std::vector<std::unique_ptr<NpuTop>> npus;
 };
 

@@ -39,6 +39,13 @@ class NpuCluster(SystemC_ScModule):
     cube_queue_depth = Param.UInt32(32, "Cube queue depth")
     fixpipe_queue_depth = Param.UInt32(32, "Fixpipe queue depth")
     file_io_queue_depth = Param.UInt32(32, "Simulator file I/O queue depth")
+    niu_queue_depth = Param.UInt32(32, "NIU command queue depth")
+    niu_tx_queue_depth = Param.UInt32(64, "NIU TX packet queue depth")
+    niu_rx_queue_depth = Param.UInt32(64, "NIU RX packet queue depth")
+    noc_link_queue_depth = Param.UInt32(16, "NOC packet queue depth per directed link")
+    noc_packet_bytes = Param.UInt32(128, "NOC packet payload bytes")
+    noc_link_latency_cycles = Param.UInt32(1, "NOC per-link latency in NPU cycles")
+    noc_bytes_per_cycle = Param.UInt32(128, "NOC per-link payload bandwidth")
 
     enable_sim_file_io = Param.Bool(False, "Enable simulator-only file I/O commands")
     sim_file_io_root = Param.String("", "Root directory for file I/O fixture files")

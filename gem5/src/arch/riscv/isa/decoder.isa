@@ -2589,6 +2589,12 @@ decode QUADRANT {
                     0x00: cube_mma_fp32(MmaFp32_8x16x16);
                 }
             }
+            0x7: decode FUNCT7 {
+                format XaiNiuOp {
+                    0x00: niu_ub_to_remote_ub(UbToRemoteUb);
+                    0x01: niu_ub_to_remote_gm(UbToRemoteGm);
+                }
+            }
         }
 
         0x1e: M5Op::M5Op();

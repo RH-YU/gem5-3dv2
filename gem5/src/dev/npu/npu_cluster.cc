@@ -46,6 +46,13 @@ make_config(const gem5::NpuClusterParams &params)
     config.cube_queue_depth = params.cube_queue_depth;
     config.fixpipe_queue_depth = params.fixpipe_queue_depth;
     config.file_io_queue_depth = params.file_io_queue_depth;
+    config.niu_queue_depth = params.niu_queue_depth;
+    config.niu_tx_queue_depth = params.niu_tx_queue_depth;
+    config.niu_rx_queue_depth = params.niu_rx_queue_depth;
+    config.noc_link_queue_depth = params.noc_link_queue_depth;
+    config.noc_packet_bytes = params.noc_packet_bytes;
+    config.noc_link_latency_cycles = params.noc_link_latency_cycles;
+    config.noc_bytes_per_cycle = params.noc_bytes_per_cycle;
     config.enable_sim_file_io = params.enable_sim_file_io;
     config.sim_file_io_root = params.sim_file_io_root;
     config.scheduler_dispatch_delay = to_sc_time(params.scheduler_dispatch_delay);
@@ -90,6 +97,12 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
     if (npu_count == 0 || npu_count > 4)
         fatal("NpuCluster npu_count must be in the range [1, 4].");
 
+    noc.configure(config, npu_count);
+
+    SC_METHOD(noc_tick);
+    dont_initialize();
+    sensitive << npu_clock.pos();
+
     if (dispatch_id != 0)
         registerNpuCommandTarget(dispatch_id, *this);
 
@@ -99,6 +112,7 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
         trace_file = sc_core::sc_create_vcd_trace_file(trace_basename.c_str());
         configure_vcd_trace_time_unit(trace_file, trace_cycle_ticks);
         register_cpu_trace_signals(trace_file, trace_signals, "cpu");
+        noc.register_trace(trace_file, "cluster.noc");
         sc_core::sc_trace(trace_file, npu_clock, "cluster.npu_clock");
     }
 
@@ -108,6 +122,8 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
         npus.push_back(std::make_unique<NpuTop>(
                 npu_name.c_str(), config_for_npu(config, npu_id, npu_count)));
         npus.back()->npu_clk(npu_clock);
+        npus.back()->bind_noc(noc);
+        noc.register_endpoint(npu_id, *npus.back());
         npus.back()->register_trace(trace_file, npu_name);
     }
 }
@@ -126,12 +142,19 @@ NpuCluster::config_for_npu(const NpuConfig &base_config, uint8_t npu_id,
 {
     NpuConfig config = base_config;
     config.npu_id = npu_id;
+    config.npu_count = npu_count;
     if (npu_count > 1 && !config.sim_file_io_root.empty()) {
         config.sim_file_io_root =
                 (std::filesystem::path(config.sim_file_io_root) /
                  ("npu" + std::to_string(npu_id))).string();
     }
     return config;
+}
+
+void
+NpuCluster::noc_tick()
+{
+    noc.tick();
 }
 
 void

@@ -28,7 +28,9 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
                         npu_mvp::FixpipeOpcode::L0CToL1,
                 npu_mvp::SyncOpcode sync_opcode = npu_mvp::SyncOpcode::Set,
                 npu_mvp::FileIoOpcode file_io_opcode =
-                        npu_mvp::FileIoOpcode::WriteDataToNpu)
+                        npu_mvp::FileIoOpcode::WriteDataToNpu,
+                npu_mvp::NiuOpcode niu_opcode =
+                        npu_mvp::NiuOpcode::UbToRemoteUb)
 {
     const auto &pc_state = xc->pcState().as<RiscvISA::PCState>();
 
@@ -58,6 +60,9 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
         break;
       case npu_mvp::Opcode::FileIo:
         command.subopcode = static_cast<uint8_t>(file_io_opcode);
+        break;
+      case npu_mvp::Opcode::Niu:
+        command.subopcode = static_cast<uint8_t>(niu_opcode);
         break;
     }
     command.pc = pc_state.pc();
@@ -153,12 +158,14 @@ dispatchXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
                            npu_mvp::FixpipeOpcode::L0CToL1,
                    npu_mvp::SyncOpcode sync_opcode = npu_mvp::SyncOpcode::Set,
                    npu_mvp::FileIoOpcode file_io_opcode =
-                           npu_mvp::FileIoOpcode::WriteDataToNpu)
+                           npu_mvp::FileIoOpcode::WriteDataToNpu,
+                   npu_mvp::NiuOpcode niu_opcode =
+                           npu_mvp::NiuOpcode::UbToRemoteUb)
 {
     const auto command = buildXaiCommand(
             xc, mach_inst, opcode, rd_value, rs1_value, rs2_value,
             mte4_opcode, mte2_opcode, mte1_opcode, vcu_opcode, cube_opcode,
-            fixpipe_opcode, sync_opcode, file_io_opcode);
+            fixpipe_opcode, sync_opcode, file_io_opcode, niu_opcode);
     return sendXaiCommandDirect(xc, command);
 }
 
@@ -514,6 +521,31 @@ def format XaiFixpipeOp(fixpipe_opcode, *flags) {{
     if (fault != NoFault)
         return fault;
     ''' % { 'fixpipe_opcode': 'npu_mvp::FixpipeOpcode::' + fixpipe_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(3)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiNiuOp(niu_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t rd_value = xc->getRegOperand(this, 0);
+    const uint64_t rs1_value = xc->getRegOperand(this, 1);
+    const uint64_t rs2_value = xc->getRegOperand(this, 2);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::Niu, rd_value, rs1_value,
+            rs2_value, npu_mvp::Mte4Opcode::GmToUb,
+            npu_mvp::Mte2Opcode::UbToGm, npu_mvp::Mte1Opcode::L1ToGm,
+            npu_mvp::VcuOpcode::Load,
+            npu_mvp::CubeOpcode::MmaFp32_8x16x16,
+            npu_mvp::FixpipeOpcode::L0CToL1, npu_mvp::SyncOpcode::Set,
+            npu_mvp::FileIoOpcode::WriteDataToNpu, %(niu_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'niu_opcode': 'npu_mvp::NiuOpcode::' + niu_opcode }
     iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
     iop.padSrcRegIdx(3)
     header_output = XaiDeclare.subst(iop)

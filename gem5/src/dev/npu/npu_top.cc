@@ -1,14 +1,24 @@
 #include "dev/npu/npu_top.hh"
 
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace npu_mvp
 {
 
 namespace
 {
+
+struct RegionRange
+{
+    const char *name;
+    uint64_t base;
+    uint64_t size;
+};
 
 bool
 range_fits(uint64_t address, uint64_t byte_count, uint64_t base, uint64_t size)
@@ -43,6 +53,42 @@ require_non_overlapping(uint64_t first_base, uint64_t first_size,
         throw std::invalid_argument(message);
 }
 
+std::vector<RegionRange>
+configured_regions(const NpuConfig &config)
+{
+    return {
+            {"GM", config.gm_phys_base, config.gm_size},
+            {"UB", config.ub_phys_base, config.ub_size},
+            {"L1", config.l1_phys_base, config.l1_size},
+            {"L0A", config.l0a_phys_base, config.l0a_size},
+            {"L0B", config.l0b_phys_base, config.l0b_size},
+            {"L0C", config.l0c_phys_base, config.l0c_size},
+    };
+}
+
+void
+require_valid_npu_regions(const NpuConfig &config)
+{
+    for (const RegionRange &region : configured_regions(config)) {
+        if (!range_is_valid(region.base, region.size))
+            throw std::invalid_argument("NPU physical address map overflows");
+    }
+}
+
+void
+require_non_overlapping_npu_regions(const NpuConfig &config)
+{
+    const std::vector<RegionRange> regions = configured_regions(config);
+    for (auto first = regions.begin(); first != regions.end(); ++first) {
+        for (auto second = std::next(first); second != regions.end(); ++second) {
+            const std::string message = std::string(first->name) + " and " +
+                    second->name + " physical regions overlap";
+            require_non_overlapping(first->base, first->size, second->base,
+                                    second->size, message.c_str());
+        }
+    }
+}
+
 } // anonymous namespace
 
 NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
@@ -52,59 +98,8 @@ NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
       l0b(this->config.l0b_size), l0c(this->config.l0c_size),
       vcu(this->config.vector_register_count, this->config.vector_register_bytes)
 {
-    if (!range_is_valid(this->config.gm_phys_base, this->config.gm_size) ||
-        !range_is_valid(this->config.ub_phys_base, this->config.ub_size) ||
-        !range_is_valid(this->config.l1_phys_base, this->config.l1_size) ||
-        !range_is_valid(this->config.l0a_phys_base, this->config.l0a_size) ||
-        !range_is_valid(this->config.l0b_phys_base, this->config.l0b_size) ||
-        !range_is_valid(this->config.l0c_phys_base, this->config.l0c_size)) {
-        throw std::invalid_argument("NPU physical address map overflows");
-    }
-    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
-                            this->config.ub_phys_base, this->config.ub_size,
-                            "GM and UB physical regions overlap");
-    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
-                            this->config.l1_phys_base, this->config.l1_size,
-                            "GM and L1 physical regions overlap");
-    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
-                            this->config.l0a_phys_base, this->config.l0a_size,
-                            "GM and L0A physical regions overlap");
-    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
-                            this->config.l0b_phys_base, this->config.l0b_size,
-                            "GM and L0B physical regions overlap");
-    require_non_overlapping(this->config.gm_phys_base, this->config.gm_size,
-                            this->config.l0c_phys_base, this->config.l0c_size,
-                            "GM and L0C physical regions overlap");
-    require_non_overlapping(this->config.ub_phys_base, this->config.ub_size,
-                            this->config.l1_phys_base, this->config.l1_size,
-                            "UB and L1 physical regions overlap");
-    require_non_overlapping(this->config.ub_phys_base, this->config.ub_size,
-                            this->config.l0a_phys_base, this->config.l0a_size,
-                            "UB and L0A physical regions overlap");
-    require_non_overlapping(this->config.ub_phys_base, this->config.ub_size,
-                            this->config.l0b_phys_base, this->config.l0b_size,
-                            "UB and L0B physical regions overlap");
-    require_non_overlapping(this->config.ub_phys_base, this->config.ub_size,
-                            this->config.l0c_phys_base, this->config.l0c_size,
-                            "UB and L0C physical regions overlap");
-    require_non_overlapping(this->config.l1_phys_base, this->config.l1_size,
-                            this->config.l0a_phys_base, this->config.l0a_size,
-                            "L1 and L0A physical regions overlap");
-    require_non_overlapping(this->config.l1_phys_base, this->config.l1_size,
-                            this->config.l0b_phys_base, this->config.l0b_size,
-                            "L1 and L0B physical regions overlap");
-    require_non_overlapping(this->config.l1_phys_base, this->config.l1_size,
-                            this->config.l0c_phys_base, this->config.l0c_size,
-                            "L1 and L0C physical regions overlap");
-    require_non_overlapping(this->config.l0a_phys_base, this->config.l0a_size,
-                            this->config.l0b_phys_base, this->config.l0b_size,
-                            "L0A and L0B physical regions overlap");
-    require_non_overlapping(this->config.l0a_phys_base, this->config.l0a_size,
-                            this->config.l0c_phys_base, this->config.l0c_size,
-                            "L0A and L0C physical regions overlap");
-    require_non_overlapping(this->config.l0b_phys_base, this->config.l0b_size,
-                            this->config.l0c_phys_base, this->config.l0c_size,
-                            "L0B and L0C physical regions overlap");
+    require_valid_npu_regions(this->config);
+    require_non_overlapping_npu_regions(this->config);
 
     SC_METHOD(dispatch_ingress);
     sensitive << scheduler.dispatch_event;
@@ -116,6 +111,8 @@ NpuTop::NpuTop(sc_core::sc_module_name name, NpuConfig config)
     SC_THREAD(cube_thread);
     SC_THREAD(fixpipe_thread);
     SC_THREAD(file_io_thread);
+    SC_THREAD(niu_tx_thread);
+    SC_THREAD(niu_rx_thread);
 }
 
 uint64_t
@@ -164,6 +161,12 @@ NpuTop::submit(const NpuCommand &command)
 }
 
 void
+NpuTop::bind_noc(NocState &noc_state)
+{
+    noc = &noc_state;
+}
+
+void
 NpuTop::register_trace(sc_core::sc_trace_file *tf, const std::string &scope)
 {
     trace_file = tf;
@@ -175,6 +178,7 @@ NpuTop::register_trace(sc_core::sc_trace_file *tf, const std::string &scope)
     cube.trace.register_trace(trace_file, scope + ".cube");
     fixpipe.trace.register_trace(trace_file, scope + ".fixpipe");
     file_io.trace.register_trace(trace_file, scope + ".file_io");
+    niu.trace.register_trace(trace_file, scope + ".niu");
 }
 
 uint64_t

@@ -65,6 +65,12 @@ opcode_name(const NpuCommand &command)
                 : "fixpipe_l0c_to_l1";
     }
 
+    if (command.opcode == Opcode::Niu) {
+        return as_niu_opcode(command) == NiuOpcode::UbToRemoteGm
+                ? "niu_ub_to_remote_gm"
+                : "niu_ub_to_remote_ub";
+    }
+
     switch (command.opcode) {
       case Opcode::Mte4: return "mte4_unknown";
       case Opcode::Mte2: return "mte2_unknown";
@@ -74,6 +80,7 @@ opcode_name(const NpuCommand &command)
       case Opcode::Fixpipe: return "fixpipe_unknown";
       case Opcode::Sync: return "sync_unknown";
       case Opcode::FileIo: return "file_io_unknown";
+      case Opcode::Niu: return "niu_unknown";
     }
     return "unknown";
 }
@@ -176,6 +183,11 @@ NpuTop::enqueue_scheduled(Engine engine, ScheduledCommand &&scheduled)
         file_io.trace.trace_queue_size(file_io.queue.size());
         file_io.event.notify(sc_core::SC_ZERO_TIME);
         return true;
+      case Engine::Niu:
+        niu.queue.push_back(std::move(scheduled));
+        niu.trace.trace_command_queue_size(niu.queue.size());
+        niu.event.notify(sc_core::SC_ZERO_TIME);
+        return true;
     }
     return false;
 }
@@ -192,6 +204,7 @@ NpuTop::route_engine(const NpuCommand &command) const
       case Opcode::Fixpipe: return Engine::Fixpipe;
       case Opcode::Sync: return sync_route_engine(command);
       case Opcode::FileIo: return Engine::FileIo;
+      case Opcode::Niu: return Engine::Niu;
     }
     throw std::logic_error("opcode has no scheduler descriptor");
 }
@@ -217,6 +230,18 @@ NpuTop::trace_command(const NpuCommand &command) const
               << " rs2_value=" << command.rs2_value;
     if (command.opcode == Opcode::FileIo)
         std::cout << " storage_region=" << storage_region_name(command);
+    if (command.opcode == Opcode::Niu) {
+        const NiuTransfer transfer =
+                decode_niu_transfer(command, config.npu_id);
+        std::cout << " source_npu="
+                  << static_cast<unsigned>(transfer.source_npu_id)
+                  << " target_npu="
+                  << static_cast<unsigned>(transfer.target_npu_id)
+                  << " niu_bytes=" << transfer.byte_count
+                  << " niu_src=0x" << std::hex << transfer.source_address
+                  << " niu_dst=0x" << transfer.target_address
+                  << std::dec;
+    }
     std::cout
               << " sync_src=" << static_cast<unsigned>(command.sync_src)
               << " sync_dst=" << static_cast<unsigned>(command.sync_dst)
@@ -236,6 +261,7 @@ NpuTop::engine_has_space(Engine engine) const
       case Engine::Fixpipe:
         return fixpipe.queue.size() < config.fixpipe_queue_depth;
       case Engine::FileIo: return file_io.queue.size() < config.file_io_queue_depth;
+      case Engine::Niu: return niu.queue.size() < config.niu_queue_depth;
     }
     return false;
 }
@@ -254,6 +280,7 @@ NpuTop::sync_route_engine(const NpuCommand &command) const
       case SyncEndpoint::Mte1: return Engine::Mte1;
       case SyncEndpoint::Cube: return Engine::Cube;
       case SyncEndpoint::Fixpipe: return Engine::Fixpipe;
+      case SyncEndpoint::Niu: return Engine::Niu;
       case SyncEndpoint::Cpu:
         throw std::logic_error("CPU sync endpoint is handled before scheduler routing");
     }
@@ -298,6 +325,7 @@ NpuTop::scope_includes(SyncScope scope, Engine engine) const
       case SyncScope::Mte1: return engine == Engine::Mte1;
       case SyncScope::Cube: return engine == Engine::Cube;
       case SyncScope::Fixpipe: return engine == Engine::Fixpipe;
+      case SyncScope::Niu: return engine == Engine::Niu;
     }
     return false;
 }

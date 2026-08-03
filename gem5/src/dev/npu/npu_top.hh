@@ -7,6 +7,8 @@
 #include "dev/npu/npu_mte1.hh"
 #include "dev/npu/npu_mte2.hh"
 #include "dev/npu/npu_mte4.hh"
+#include "dev/npu/npu_niu.hh"
+#include "dev/npu/npu_noc.hh"
 #include "dev/npu/npu_scheduler.hh"
 #include "dev/npu/npu_storage.hh"
 #include "dev/npu/npu_sync.hh"
@@ -27,7 +29,7 @@
 namespace npu_mvp
 {
 
-class NpuTop : public sc_core::sc_module
+class NpuTop : public sc_core::sc_module, public NocEndpoint
 {
   public:
     SC_HAS_PROCESS(NpuTop);
@@ -45,6 +47,7 @@ class NpuTop : public sc_core::sc_module
     void consume_cpu_sync(const NpuCommand &command);
     void register_trace(sc_core::sc_trace_file *trace_file,
                         const std::string &scope);
+    void bind_noc(NocState &noc_state);
     uint64_t scope_watermark() const;
     bool scope_complete(SyncScope scope, uint64_t watermark) const;
     uint64_t fault_count() const;
@@ -52,6 +55,13 @@ class NpuTop : public sc_core::sc_module
 
     void write_gm_for_test(uint64_t address, const std::vector<uint8_t> &data);
     std::vector<uint8_t> read_gm_for_test(uint64_t address, uint64_t byte_count) const;
+
+    bool niu_has_tx_packet() const override;
+    const NiuPacket &peek_niu_tx_packet() const override;
+    void pop_niu_tx_packet() override;
+    bool can_receive_niu_packet() const override;
+    void receive_niu_packet(const NiuPacket &packet) override;
+    void receive_niu_ack(uint64_t sequence, uint32_t packet_id) override;
 
   private:
     enum class Region : uint8_t { Gm, Ub, L1, L0A, L0B, L0C };
@@ -128,6 +138,15 @@ class NpuTop : public sc_core::sc_module
     void WriteDataToNpu(const ScheduledCommand &command);
     void LoadDataFromNpu(const ScheduledCommand &command);
 
+    // NIU engine.
+    void niu_tx_thread();
+    void niu_rx_thread();
+    void execute_niu(const ScheduledCommand &command);
+    void enqueue_niu_packet(const NiuPacket &packet);
+    void write_niu_packet(const NiuPacket &packet);
+    Region niu_destination_region(const NpuCommand &command) const;
+    uint32_t niu_packet_count(uint64_t byte_count) const;
+
     // Timing helpers.
     sc_core::sc_time transfer_delay(uint64_t byte_count, double bytes_per_ns,
                                     const sc_core::sc_time &setup) const;
@@ -147,6 +166,8 @@ class NpuTop : public sc_core::sc_module
     CubeState cube;
     FixpipeState fixpipe;
     FileIoState file_io;
+    NiuState niu;
+    NocState *noc = nullptr;
     SyncState sync;
     sc_core::sc_trace_file *trace_file = nullptr;
     NpuTraceSignals trace_signals;

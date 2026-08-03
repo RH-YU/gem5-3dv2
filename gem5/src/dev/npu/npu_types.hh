@@ -17,6 +17,7 @@ enum class Opcode : uint8_t {
     Mte1 = 6,
     Cube = 7,
     Fixpipe = 8,
+    Niu = 9,
 };
 
 enum class Mte4Opcode : uint8_t {
@@ -62,6 +63,11 @@ enum class FileIoOpcode : uint8_t {
     LoadDataFromNpu = 1,
 };
 
+enum class NiuOpcode : uint8_t {
+    UbToRemoteUb = 0,
+    UbToRemoteGm = 1,
+};
+
 enum class Engine : uint8_t {
     Mte4,
     Mte1,
@@ -70,6 +76,7 @@ enum class Engine : uint8_t {
     Cube,
     Fixpipe,
     FileIo,
+    Niu,
 };
 
 enum class SyncScope : uint8_t {
@@ -82,6 +89,7 @@ enum class SyncScope : uint8_t {
     Mte1 = 6,
     Cube = 7,
     Fixpipe = 8,
+    Niu = 9,
 };
 
 enum class SyncEndpoint : uint8_t {
@@ -93,6 +101,7 @@ enum class SyncEndpoint : uint8_t {
     Mte1 = 5,
     Cube = 6,
     Fixpipe = 7,
+    Niu = 8,
 };
 
 enum class SubmitResult : uint8_t {
@@ -177,6 +186,12 @@ as_file_io_opcode(const NpuCommand &command)
     return static_cast<FileIoOpcode>(command.subopcode);
 }
 
+inline NiuOpcode
+as_niu_opcode(const NpuCommand &command)
+{
+    return static_cast<NiuOpcode>(command.subopcode);
+}
+
 struct VcuContext
 {
     uint64_t nvl = 0;
@@ -186,6 +201,7 @@ struct VcuContext
 struct NpuConfig
 {
     uint8_t npu_id = 0;
+    uint8_t npu_count = 1;
     uint64_t npu_dispatch_id = 0;
     uint64_t gm_phys_base = 0x0000000000000000ULL;
     uint64_t gm_size = 2ULL * 1024ULL * 1024ULL * 1024ULL;
@@ -212,6 +228,13 @@ struct NpuConfig
     uint32_t cube_queue_depth = 32;
     uint32_t fixpipe_queue_depth = 32;
     uint32_t file_io_queue_depth = 32;
+    uint32_t niu_queue_depth = 32;
+    uint32_t niu_tx_queue_depth = 64;
+    uint32_t niu_rx_queue_depth = 64;
+    uint32_t noc_link_queue_depth = 16;
+    uint32_t noc_packet_bytes = 128;
+    uint32_t noc_link_latency_cycles = 1;
+    uint32_t noc_bytes_per_cycle = 128;
     bool enable_sim_file_io = false;
     std::string sim_file_io_root;
     sc_core::sc_time scheduler_dispatch_delay = sc_core::sc_time(1, sc_core::SC_NS);
