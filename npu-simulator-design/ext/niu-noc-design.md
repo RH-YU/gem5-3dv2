@@ -145,17 +145,7 @@ NOC 是双向环形总线，每个方向都有独立链路队列。
 | `ack_event` | NOC 向源 NIU 返回完成确认 |
 | `block_event` | 注入/转发/投递因容量不足而阻塞 |
 
-## 6. 当前实现的变化点
-
-相对早期实现，当前 NIU/NOC 的主要变化是：
-
-1. NIU 不再只承担本地 file I/O 风格的单机搬运，而是能将数据打包成 packet 经 NOC 发送到其他 NPU。
-2. NOC 用双向环形总线建模多 core 互联。
-3. remote sync 通过 Sync packet 传递，不再只在本地同步域里生效。
-4. NIU 的 `packet_sent_event` / `packet_received_event` 已调整为脉冲式 trace，更适合观察单次事件。
-5. `ack_event` 用来表示 packet 生命周期结束，源 NIU 可以据此推进命令完成进度。
-
-## 7. 相关文件
+## 6. 相关文件
 
 - `gem5/src/dev/npu/npu_niu.hh`
 - `gem5/src/dev/npu/npu_niu.cc`
