@@ -44,6 +44,8 @@ def main() -> None:
         raise SystemExit("--byte-count must be positive")
 
     payload = deterministic_payload(args.byte_count)
+    for npu_id in range(3):
+        (args.file_io_root / f"npu{npu_id}").mkdir(parents=True, exist_ok=True)
     write_bytes(args.file_io_root / "npu0" / "GMInputFile_0_0.bin", payload)
     write_bytes(args.expected_root / "xai_niu_expected_remote_ub.bin", payload)
     write_bytes(args.expected_root / "xai_niu_expected_remote_gm.bin", payload)
