@@ -144,8 +144,85 @@ NOC 是双向环形总线，每个方向都有独立链路队列。
 | `deliver_event` | packet 到达目标 NIU |
 | `ack_event` | NOC 向源 NIU 返回完成确认 |
 | `block_event` | 注入/转发/投递因容量不足而阻塞 |
+| `cw0_queue_size` | 顺时针方向第 0 段链路队列深度，对应 `0 -> 1`。 |
+| `cw1_queue_size` | 顺时针方向第 1 段链路队列深度，对应 `1 -> 2`。 |
+| `cw2_queue_size` | 顺时针方向第 2 段链路队列深度，对应 `2 -> 3`。 |
+| `cw3_queue_size` | 顺时针方向第 3 段链路队列深度，对应 `3 -> 0`。 |
+| `ccw0_queue_size` | 逆时针方向第 0 段链路队列深度，对应 `0 -> 3`。 |
+| `ccw1_queue_size` | 逆时针方向第 1 段链路队列深度，对应 `1 -> 0`。 |
+| `ccw2_queue_size` | 逆时针方向第 2 段链路队列深度，对应 `2 -> 1`。 |
+| `ccw3_queue_size` | 逆时针方向第 3 段链路队列深度，对应 `3 -> 2`。 |
+| `last_source` | 最近一次被 NOC trace 记录的 packet 源 NPU 编号。 |
+| `last_target` | 最近一次被 NOC trace 记录的 packet 目的 NPU 编号。 |
+| `last_direction` | 最近一次被 NOC trace 记录的路由方向，`0` 为顺时针，`1` 为逆时针。 |
+| `last_hops` | 最近一次被 NOC trace 记录的 packet 跳数。 |
+| `last_packet_bytes` | 最近一次被 NOC trace 记录的 packet 有效字节数。 |
 
-## 6. 相关文件
+## 6. 队列深度含义
+
+当前实现里，NOC 和 NIU 都有各自独立的队列深度参数：
+
+| 参数 | 含义 |
+|---|---|
+| `niu.tx_queue_depth` | NIU 里等待送入 NOC 的 packet 队列深度。 |
+| `niu.rx_queue_depth` | NIU 里等待被目的侧解析的 packet 队列深度。 |
+| `noc.link_queue_depth` | NOC 每一段链路上允许同时排队的 packet 数量上限。 |
+
+它们的关系是串联的：
+
+```text
+NIU command -> NIU TX queue -> NOC link queue -> destination NIU RX queue
+```
+
+含义上可以这样理解：
+
+- `tx_queue_depth` 控制 packet 在源 NIU 里能积压多少个。
+- `link_queue_depth` 控制 packet 在 NOC 每一段链路里能积压多少个。
+- `rx_queue_depth` 控制 packet 到达目标 NIU 后能积压多少个。
+
+任一层满了都会产生背压：
+
+- 源 NIU 不能继续把 packet 送进 NOC 时，会阻塞后续注入。
+- NOC 某段链路满时，packet 不能继续 forward。
+- 目标 NIU RX 队列满时，packet 不能完成 deliver。
+
+所以这三个深度参数分别约束不同阶段的缓冲能力，不是同一个东西。
+
+## 7. NOC 仲裁
+
+当前实现里的 NOC 没有单独的集中式 arbiter，而是使用“固定执行顺序 + 轮询注入 + 链路 FIFO”的简化模型。
+
+### 7.1 当前实现方式
+
+对应代码里的实际执行顺序是：
+
+1. `tick()` 先调用 `advance_links(clockwise_links, Clockwise)`。
+2. 再调用 `advance_links(counter_clockwise_links, CounterClockwise)`。
+3. 然后调用 `try_inject(Clockwise)`。
+4. 最后调用 `try_inject(CounterClockwise)`。
+
+这表示：
+
+- 顺时针链路先于逆时针链路被推进。
+- 同一拍里，链路转发先于新 packet 注入。
+- 由于先执行 `advance_links()`，所以“转发到下一跳的 packet”会比“本拍新注入的 packet”更早进入下一段链路队列。
+
+`try_inject()` 的注入策略是 round-robin：
+
+- 从 `last_grant_source + 1` 开始轮询源 NPU。
+- 找到第一个有 TX packet 且方向匹配的源，就立即注入。
+- 成功后更新 `last_grant_source`，并返回，不继续找其他源。
+
+### 7.2 仲裁含义
+
+1. 每个方向上的源 NPU 之间是轮询公平的，不会固定偏向某一个源。
+2. 每条链路内部使用 FIFO，packet 按 `push_back()` 顺序进入队列。
+3. 链路头 packet 如果下一跳满了，就会停住并触发 `block_event`，不做抢占。
+4. 同一拍里，转发和新注入的相对顺序仍然受 `tick()` 执行顺序影响，所以它不是严格的公平仲裁器。
+
+如果后续需要更强的公平性，可以再加一层 link-level arbiter，把“转发 packet”和“新注入 packet”放到同一个竞争集合里做统一选择。
+
+## 8. 相关文件
 
 - `gem5/src/dev/npu/npu_niu.hh`
 - `gem5/src/dev/npu/npu_niu.cc`
