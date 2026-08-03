@@ -101,7 +101,7 @@ NpuCluster::NpuCluster(sc_core::sc_module_name name, const NpuConfig &config,
 
     SC_METHOD(noc_tick);
     dont_initialize();
-    sensitive << npu_clock.pos();
+    sensitive << npu_clock.posedge_event();
 
     if (dispatch_id != 0)
         registerNpuCommandTarget(dispatch_id, *this);
