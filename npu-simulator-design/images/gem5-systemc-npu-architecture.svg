@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080" role="img" aria-labelledby="title desc">
   <title id="title">gem5 + SystemC NPU architecture</title>
-  <desc id="desc">Current implementation architecture for direct XAI command dispatch, bounded queues, engine execution, sync tokens, CPU backpressure, and AICore local memory data paths.</desc>
+  <desc id="desc">Current implementation architecture for direct XAI command dispatch, bounded queues, engine execution, sync tokens, CPU backpressure, AICore local memory data paths, and NIU/NOC interconnect.</desc>
   <defs>
     <marker id="arrow-dark" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
       <path d="M2,2 L10,6 L2,10 Z" fill="#334155"/>
@@ -40,11 +40,11 @@
     </style>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1600" height="1000"/>
+  <rect class="bg" x="0" y="0" width="1600" height="1080"/>
   <text class="title" x="42" y="48">gem5 + SystemC NPU 当前实现框图</text>
-  <text class="subtitle" x="42" y="76">direct XAI/RVV NPU submit, per-NPU scheduler, MTE/VCU/Cube/Fixpipe engines, L1/L0/UB/GM storage, sync token, ReExec backpressure</text>
+  <text class="subtitle" x="42" y="76">direct XAI/RVV NPU submit, per-NPU scheduler, MTE/VCU/Cube/Fixpipe/NIU/NOC engines, L1/L0/UB/GM storage, sync token, ReExec backpressure</text>
 
-  <rect class="domain" x="40" y="110" width="390" height="760"/>
+  <rect class="domain" x="40" y="110" width="390" height="900"/>
   <text class="section-title" x="64" y="143">gem5 CPU / ISA / NPU Device</text>
 
   <rect class="box gem5" x="78" y="178" width="314" height="74"/>
@@ -74,7 +74,7 @@
   <rect class="note" x="78" y="790" width="314" height="48"/>
   <text class="small" x="102" y="819">CPU stalls only when NPU cannot accept a command</text>
 
-  <rect class="domain" x="470" y="110" width="1088" height="760"/>
+  <rect class="domain" x="470" y="110" width="1088" height="900"/>
   <text class="section-title" x="494" y="143">SystemC NPU instance, replicated per NPU</text>
 
   <rect class="box sched" x="506" y="178" width="240" height="76"/>
@@ -84,13 +84,13 @@
   <rect class="box sched" x="506" y="292" width="240" height="94"/>
   <text class="label" x="532" y="322">Scheduler</text>
   <text class="small" x="532" y="346">route by coarse Opcode</text>
-  <text class="small" x="532" y="368">freeze VCU context at dispatch</text>
+  <text class="small" x="532" y="368">dispatch to per-engine FIFO</text>
 
   <rect class="box sync" x="506" y="424" width="240" height="108"/>
-  <text class="label" x="532" y="454">Sync + VCU context</text>
+  <text class="label" x="532" y="454">Sync state</text>
   <text class="small" x="532" y="478">token: src, dst, id</text>
-  <text class="small" x="532" y="500">vsetvl enters VCU FIFO</text>
-  <text class="small" x="532" y="520">updates nvl/eew_bytes</text>
+  <text class="small" x="532" y="500">sync state only tracks the token</text>
+  <text class="small" x="532" y="520">set / wait consume the token</text>
 
   <rect class="box queue" x="806" y="156" width="150" height="56"/>
   <text class="label" x="846" y="186">MTE4 FIFO</text>
@@ -120,6 +120,10 @@
   <text class="label" x="820" y="642">GM File I/O FIFO</text>
   <text class="tiny" x="826" y="660">test import/export</text>
 
+  <rect class="box queue" x="806" y="688" width="150" height="56"/>
+  <text class="label" x="852" y="718">NIU FIFO</text>
+  <text class="tiny" x="832" y="736">packetized UB/GM transfer</text>
+
   <rect class="box engine" x="1018" y="148" width="168" height="68"/>
   <text class="label" x="1055" y="178">MTE4 thread</text>
   <text class="tiny" x="1040" y="199">copy GM to UB/L1</text>
@@ -132,21 +136,26 @@
   <text class="label" x="1055" y="330">MTE2 thread</text>
   <text class="tiny" x="1040" y="351">copy UB to GM/L1</text>
 
-  <rect class="box engine" x="1018" y="376" width="168" height="68"/>
+  <rect class="box engine" x="1018" y="376" width="168" height="86"/>
   <text class="label" x="1062" y="406">VCU thread</text>
-  <text class="tiny" x="1038" y="427">operation descriptor table</text>
+  <text class="tiny" x="1038" y="427">vsetvl enters VCU FIFO</text>
+  <text class="tiny" x="1038" y="445">owns nvl/eew_bytes</text>
 
-  <rect class="box engine" x="1018" y="452" width="168" height="68"/>
-  <text class="label" x="1056" y="482">Cube thread</text>
-  <text class="tiny" x="1037" y="503">fp32 matmul to L0C</text>
+  <rect class="box engine" x="1018" y="468" width="168" height="68"/>
+  <text class="label" x="1056" y="498">Cube thread</text>
+  <text class="tiny" x="1037" y="519">fp32 matmul to L0C</text>
 
-  <rect class="box engine" x="1018" y="528" width="168" height="68"/>
-  <text class="label" x="1048" y="558">Fixpipe thread</text>
-  <text class="tiny" x="1040" y="579">copy L0C to L1/UB</text>
+  <rect class="box engine" x="1018" y="544" width="168" height="68"/>
+  <text class="label" x="1048" y="574">Fixpipe thread</text>
+  <text class="tiny" x="1040" y="595">copy L0C to L1/UB</text>
 
-  <rect class="box engine" x="1018" y="604" width="168" height="68"/>
-  <text class="label" x="1032" y="634">GM File I/O thread</text>
-  <text class="tiny" x="1036" y="655">host file bridge for tests</text>
+  <rect class="box engine" x="1018" y="620" width="168" height="68"/>
+  <text class="label" x="1032" y="650">GM File I/O thread</text>
+  <text class="tiny" x="1036" y="671">host file bridge for tests</text>
+
+  <rect class="box engine" x="1018" y="696" width="168" height="68"/>
+  <text class="label" x="1058" y="726">NIU thread</text>
+  <text class="tiny" x="1036" y="747">packetize data and sync token</text>
 
   <rect class="box storage" x="1260" y="154" width="122" height="62"/>
   <text class="label" x="1300" y="184">GM</text>
@@ -172,20 +181,25 @@
   <text class="label" x="1364" y="530">L0C</text>
   <text class="tiny" x="1356" y="550">64KB output</text>
 
-  <rect class="note" x="506" y="712" width="328" height="82"/>
-  <text class="label" x="532" y="742">Backpressure rule</text>
-  <text class="small" x="532" y="766">can_accept = ingress space + target FIFO space</text>
-  <text class="small" x="532" y="786">failure returns ReExec to retry same XAI instruction</text>
+  <rect class="note" x="506" y="772" width="328" height="82"/>
+  <text class="label" x="532" y="802">Backpressure rule</text>
+  <text class="small" x="532" y="826">can_accept = ingress space + target FIFO space</text>
+  <text class="small" x="532" y="846">failure returns ReExec to retry same XAI instruction</text>
 
-  <rect class="note" x="876" y="712" width="312" height="82"/>
-  <text class="label" x="902" y="742">Async execution rule</text>
-  <text class="small" x="902" y="766">accepted non-sync commands do not wait for engine done</text>
-  <text class="small" x="902" y="786">software uses set/wait for data dependency</text>
+  <rect class="note" x="876" y="772" width="312" height="82"/>
+  <text class="label" x="902" y="802">NOC interconnect</text>
+  <text class="small" x="902" y="826">bidirectional ring, per-hop capacity</text>
+  <text class="small" x="902" y="846">128B packet granularity</text>
 
-  <rect class="note" x="1230" y="712" width="292" height="82"/>
-  <text class="label" x="1256" y="742">Test file path</text>
-  <text class="small" x="1256" y="766">GM File I/O imports inputs and exports results</text>
-  <text class="small" x="1256" y="786">not a real hardware file system</text>
+  <rect class="note" x="506" y="876" width="328" height="82"/>
+  <text class="label" x="532" y="906">Async execution rule</text>
+  <text class="small" x="532" y="930">accepted non-sync commands do not wait for engine done</text>
+  <text class="small" x="532" y="950">software uses set/wait for data dependency</text>
+
+  <rect class="note" x="876" y="876" width="312" height="82"/>
+  <text class="label" x="902" y="906">NIU / NOC path</text>
+  <text class="small" x="902" y="930">packet_sent -> inject -> deliver -> packet_received</text>
+  <text class="small" x="902" y="950">ack closes packet lifetime and advances the source NIU</text>
 
   <path class="cmd" d="M235 252 L235 286"/>
   <path class="cmd" d="M235 372 L235 406"/>
@@ -206,9 +220,11 @@
   <path class="route" d="M956 260 L1018 260"/>
   <path class="route" d="M956 336 L1018 336"/>
   <path class="route" d="M956 412 L1018 412"/>
-  <path class="route" d="M956 488 L1018 488"/>
-  <path class="route" d="M956 564 L1018 564"/>
-  <path class="route" d="M956 640 L1018 640"/>
+  <path class="route" d="M956 504 L1018 504"/>
+  <path class="route" d="M956 580 L1018 580"/>
+  <path class="route" d="M956 656 L1018 656"/>
+  <path class="route" d="M956 732 L1018 732"/>
+  <path class="route" d="M746 338 L806 716"/>
 
   <path class="sync-line" d="M626 424 L806 184"/>
   <path class="sync-line" d="M626 424 L806 260"/>
@@ -217,6 +233,7 @@
   <path class="sync-line" d="M626 424 L806 488"/>
   <path class="sync-line" d="M626 424 L806 564"/>
   <path class="sync-line" d="M626 424 L806 640"/>
+  <path class="sync-line" d="M626 424 L806 716"/>
   <path class="sync-line" d="M506 484 C440 484, 424 708, 392 708"/>
 
   <path class="data" d="M1186 182 L1260 182"/>
@@ -227,16 +244,17 @@
   <path class="data" d="M1186 258 C1236 258, 1236 410, 1400 410"/>
   <path class="data" d="M1186 334 C1222 334, 1222 182, 1260 182"/>
   <path class="data" d="M1186 334 C1244 334, 1244 182, 1410 182"/>
-  <path class="data" d="M1186 486 C1226 486, 1226 410, 1260 410"/>
-  <path class="data" d="M1186 486 C1238 486, 1238 410, 1400 410"/>
-  <path class="data" d="M1186 486 C1248 486, 1248 530, 1328 530"/>
-  <path class="data" d="M1186 562 C1230 562, 1230 530, 1328 530"/>
-  <path class="data" d="M1186 562 C1250 562, 1250 296, 1260 296"/>
-  <path class="data" d="M1186 562 C1278 562, 1288 182, 1410 182"/>
-  <path class="data" d="M1186 638 C1228 638, 1228 182, 1260 182"/>
+  <path class="data" d="M1186 502 C1226 502, 1226 410, 1260 410"/>
+  <path class="data" d="M1186 502 C1238 502, 1238 410, 1400 410"/>
+  <path class="data" d="M1186 502 C1248 502, 1248 530, 1328 530"/>
+  <path class="data" d="M1186 578 C1230 578, 1230 530, 1328 530"/>
+  <path class="data" d="M1186 578 C1250 578, 1250 296, 1260 296"/>
+  <path class="data" d="M1186 578 C1278 578, 1288 182, 1410 182"/>
+  <path class="data" d="M1186 654 C1228 654, 1228 182, 1260 182"/>
 
   <text class="tiny" x="1214" y="246">MTE4: GM -> UB/L1</text>
   <text class="tiny" x="1214" y="360">MTE1: L1 -> GM/UB/L0A/L0B</text>
-  <text class="tiny" x="1214" y="470">Cube: L0A/L0B -> L0C</text>
-  <text class="tiny" x="1214" y="594">Fixpipe: L0C -> L1/UB</text>
+  <text class="tiny" x="1214" y="486">Cube: L0A/L0B -> L0C</text>
+  <text class="tiny" x="1214" y="610">Fixpipe: L0C -> L1/UB</text>
+  <text class="tiny" x="1214" y="684">NIU: packetize UB/GM + remote sync</text>
 </svg>
