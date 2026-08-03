@@ -142,6 +142,31 @@ NpuTop::niu_packet_count(uint64_t byte_count) const
             config.noc_packet_bytes);
 }
 
+NiuTransfer
+decode_data_transfer(const NpuCommand &command, uint8_t local_npu_id)
+{
+    return decode_niu_transfer(command, local_npu_id);
+}
+
+NiuPacket
+make_sync_packet(const NpuCommand &command, uint8_t local_npu_id,
+                 uint64_t sequence)
+{
+    const RemoteSyncInfo remote = decode_remote_sync_info(command);
+    NiuPacket packet;
+    packet.kind = NiuPacket::Kind::Sync;
+    packet.sequence = sequence;
+    packet.packet_id = 0;
+    packet.packet_count = 1;
+    packet.source_npu_id = local_npu_id;
+    packet.target_npu_id = remote.peer_npu_id;
+    packet.sync_src = command.sync_src;
+    packet.sync_dst = command.sync_dst;
+    packet.sync_id = command.sync_id;
+    packet.last = true;
+    return packet;
+}
+
 void
 NpuTop::enqueue_niu_packet(const NiuPacket &packet)
 {
@@ -160,7 +185,23 @@ NpuTop::execute_niu(const ScheduledCommand &scheduled)
         throw std::runtime_error("NIU has no bound NOC");
 
     const NpuCommand &command = scheduled.command;
-    const NiuTransfer transfer = decode_niu_transfer(command, config.npu_id);
+    if (as_sync_opcode(command) == SyncOpcode::RemoteSet) {
+        const RemoteSyncInfo remote = decode_remote_sync_info(command);
+        if (remote.peer_npu_id >= config.npu_count)
+            throw std::out_of_range("remote sync target NPU id is outside cluster npu_count");
+
+        niu.active_progress = NiuProgress{scheduled.sequence, 1, 0};
+        enqueue_niu_packet(make_sync_packet(command, config.npu_id,
+                                            scheduled.sequence));
+        while (niu.active_progress.has_value() &&
+               niu.active_progress->completed_packets < 1) {
+            wait(niu.progress_event);
+        }
+        niu.active_progress.reset();
+        return;
+    }
+
+    const NiuTransfer transfer = decode_data_transfer(command, config.npu_id);
     if (transfer.target_npu_id >= config.npu_count)
         throw std::out_of_range("NIU target NPU id is outside cluster npu_count");
 
@@ -181,6 +222,7 @@ NpuTop::execute_niu(const ScheduledCommand &scheduled)
                 read(Region::Ub, decoded_source.local_address, bytes);
 
         NiuPacket packet;
+        packet.kind = NiuPacket::Kind::Data;
         packet.sequence = scheduled.sequence;
         packet.packet_id = packet_id;
         packet.packet_count = packet_count;
@@ -212,7 +254,8 @@ NpuTop::niu_tx_thread()
             niu.trace.trace_command_queue_size(niu.queue.size());
             niu.busy = true;
             niu.trace.trace_start(command.command.raw_instruction);
-            if (command.command.opcode == Opcode::Sync) {
+            if (command.command.opcode == Opcode::Sync &&
+                as_sync_opcode(command.command) != SyncOpcode::RemoteSet) {
                 execute_sync(command);
             } else {
                 try {
@@ -232,6 +275,12 @@ NpuTop::niu_tx_thread()
 void
 NpuTop::write_niu_packet(const NiuPacket &packet)
 {
+    if (packet.kind == NiuPacket::Kind::Sync) {
+        signal_sync_token(packet.sync_src, packet.sync_dst, packet.sync_id,
+                          packet.source_npu_id);
+        return;
+    }
+
     const Region destination = packet.opcode == NiuOpcode::UbToRemoteGm
             ? Region::Gm
             : Region::Ub;

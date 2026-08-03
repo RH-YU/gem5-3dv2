@@ -42,6 +42,8 @@ class NpuTop : public sc_core::sc_module, public NocEndpoint
     SubmitResult submit(const NpuCommand &command);
     bool is_cpu_sync_set(const NpuCommand &command) const;
     bool is_cpu_sync_wait(const NpuCommand &command) const;
+    bool is_remote_sync_set(const NpuCommand &command) const;
+    bool is_remote_sync_wait(const NpuCommand &command) const;
     void signal_cpu_sync(const NpuCommand &command);
     bool cpu_sync_ready(const NpuCommand &command) const;
     void consume_cpu_sync(const NpuCommand &command);
@@ -89,7 +91,11 @@ class NpuTop : public sc_core::sc_module, public NocEndpoint
     bool scope_includes(SyncScope scope, Engine engine) const;
     void execute_sync(const ScheduledCommand &command);
     void signal_sync_token(const NpuCommand &command);
+    void signal_sync_token(SyncEndpoint src, SyncEndpoint dst, uint8_t id,
+                           uint8_t peer_npu_id);
     void wait_for_sync_token(const NpuCommand &command);
+    bool sync_ready(const NpuCommand &command, uint8_t peer_npu_id) const;
+    void consume_sync_token(const NpuCommand &command, uint8_t peer_npu_id);
     void complete(const ScheduledCommand &command, Engine engine);
     void fault(const ScheduledCommand &command, const std::string &message);
     VcuContext &vcu_context_for(uint8_t hart_id);

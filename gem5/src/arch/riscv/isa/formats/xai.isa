@@ -79,9 +79,15 @@ buildXaiCommand(ExecContext *xc, ExtMachInst mach_inst,
     if (opcode == npu_mvp::Opcode::Sync) {
         command.sync_src =
                 static_cast<npu_mvp::SyncEndpoint>(command.rd & 0x1F);
-        command.sync_dst =
-                static_cast<npu_mvp::SyncEndpoint>(command.rs1 & 0x1F);
         command.sync_id = command.rs2 & 0x1F;
+        if (sync_opcode == npu_mvp::SyncOpcode::RemoteSet ||
+            sync_opcode == npu_mvp::SyncOpcode::RemoteWait) {
+            command.sync_dst = static_cast<npu_mvp::SyncEndpoint>(
+                    rs1_value & 0xFF);
+        } else {
+            command.sync_dst =
+                    static_cast<npu_mvp::SyncEndpoint>(command.rs1 & 0x1F);
+        }
     }
     if (opcode == npu_mvp::Opcode::FileIo) {
         const uint64_t file_index = rs2_value;
@@ -453,6 +459,27 @@ def format XaiSyncOp(sync_opcode, *flags) {{
     iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
     header_output = XaiDeclare.subst(iop)
     decoder_output = XaiNoRegConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
+}};
+
+def format XaiRemoteSyncOp(sync_opcode, *flags) {{
+    xai_flags = flags + ('IsInteger', 'IsNonSpeculative',)
+    code = '''
+    const uint64_t remote_info = xc->getRegOperand(this, 0);
+    Fault fault = dispatchXaiCommand(
+            xc, machInst, npu_mvp::Opcode::Sync, 0, remote_info, 0,
+            npu_mvp::Mte4Opcode::GmToUb, npu_mvp::Mte2Opcode::UbToGm,
+            npu_mvp::Mte1Opcode::L1ToGm, npu_mvp::VcuOpcode::Load,
+            npu_mvp::CubeOpcode::MmaFp32_8x16x16,
+            npu_mvp::FixpipeOpcode::L0CToL1, %(sync_opcode)s);
+    if (fault != NoFault)
+        return fault;
+    ''' % { 'sync_opcode': 'npu_mvp::SyncOpcode::' + sync_opcode }
+    iop = InstObjParams(name, Name, 'RiscvStaticInst', code, xai_flags)
+    iop.padSrcRegIdx(1)
+    header_output = XaiDeclare.subst(iop)
+    decoder_output = XaiRs1Constructor.subst(iop)
     decode_block = BasicDecode.subst(iop)
     exec_output = NoWBExecute.subst(iop) + XaiDisasm.subst(iop)
 }};

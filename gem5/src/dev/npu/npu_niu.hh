@@ -19,6 +19,12 @@ namespace npu_mvp
 
 struct NiuPacket
 {
+    enum class Kind : uint8_t {
+        Data = 0,
+        Sync = 1,
+    };
+
+    Kind kind = Kind::Data;
     uint64_t sequence = 0;
     uint32_t packet_id = 0;
     uint32_t packet_count = 0;
@@ -29,6 +35,9 @@ struct NiuPacket
     uint16_t payload_bytes = 0;
     std::array<uint8_t, 128> payload = {};
     bool last = false;
+    SyncEndpoint sync_src = SyncEndpoint::Mte4;
+    SyncEndpoint sync_dst = SyncEndpoint::Mte4;
+    uint8_t sync_id = 0;
 };
 
 struct NiuTransfer

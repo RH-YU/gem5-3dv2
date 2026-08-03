@@ -48,7 +48,13 @@ opcode_name(const NpuCommand &command)
     }
 
     if (command.opcode == Opcode::Sync)
-        return as_sync_opcode(command) == SyncOpcode::Set ? "sync_set" : "sync_wait";
+        switch (as_sync_opcode(command)) {
+          case SyncOpcode::Set: return "sync_set";
+          case SyncOpcode::Wait: return "sync_wait";
+          case SyncOpcode::RemoteSet: return "remote_sync_set";
+          case SyncOpcode::RemoteWait: return "remote_sync_wait";
+          default: return "sync_unknown";
+        }
 
     if (command.opcode == Opcode::FileIo) {
         return as_file_io_opcode(command) == FileIoOpcode::LoadDataFromNpu
@@ -202,7 +208,17 @@ NpuTop::route_engine(const NpuCommand &command) const
       case Opcode::Vcu: return Engine::Vcu;
       case Opcode::Cube: return Engine::Cube;
       case Opcode::Fixpipe: return Engine::Fixpipe;
-      case Opcode::Sync: return sync_route_engine(command);
+      case Opcode::Sync:
+        switch (as_sync_opcode(command)) {
+          case SyncOpcode::Set:
+          case SyncOpcode::Wait:
+            return sync_route_engine(command);
+          case SyncOpcode::RemoteSet:
+            return Engine::Niu;
+          case SyncOpcode::RemoteWait:
+            return sync_route_engine(command);
+        }
+        throw std::logic_error("sync opcode has no scheduler descriptor");
       case Opcode::FileIo: return Engine::FileIo;
       case Opcode::Niu: return Engine::Niu;
     }
@@ -245,8 +261,15 @@ NpuTop::trace_command(const NpuCommand &command) const
     std::cout
               << " sync_src=" << static_cast<unsigned>(command.sync_src)
               << " sync_dst=" << static_cast<unsigned>(command.sync_dst)
-              << " sync_id=" << static_cast<unsigned>(command.sync_id)
-              << std::endl;
+              << " sync_id=" << static_cast<unsigned>(command.sync_id);
+    if (command.opcode == Opcode::Sync &&
+        (as_sync_opcode(command) == SyncOpcode::RemoteSet ||
+         as_sync_opcode(command) == SyncOpcode::RemoteWait)) {
+        const RemoteSyncInfo remote = decode_remote_sync_info(command);
+        std::cout << " remote_peer="
+                  << static_cast<unsigned>(remote.peer_npu_id);
+    }
+    std::cout << std::endl;
 }
 
 bool

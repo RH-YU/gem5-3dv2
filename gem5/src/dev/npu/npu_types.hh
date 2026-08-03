@@ -56,6 +56,8 @@ enum class FixpipeOpcode : uint8_t {
 enum class SyncOpcode : uint8_t {
     Set = 1,
     Wait = 2,
+    RemoteSet = 3,
+    RemoteWait = 4,
 };
 
 enum class FileIoOpcode : uint8_t {

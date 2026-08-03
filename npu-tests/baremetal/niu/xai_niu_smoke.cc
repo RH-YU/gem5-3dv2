@@ -78,6 +78,30 @@ xai_niu_ub_to_remote_gm(unsigned long bytes, unsigned long ub_src,
     asm volatile(".insn r 0x5b, 0x2, 0x02, x" XAI_STR(src) ", x" \
                  XAI_STR(dst) ", x" XAI_STR(id) ::: "memory")
 
+#define XAI_REMOTE_SYNC_SET(src, dst, id, peer_npu) \
+    do { \
+        register unsigned long remote_info asm("a0") = \
+                (((peer_npu) & 0xfUL) << 56) | ((dst) & 0xffUL); \
+        asm volatile("addi x0, %0, 0\n\t" \
+                     ".insn r 0x5b, 0x2, 0x03, x" XAI_STR(src) \
+                     ", x10, x" XAI_STR(id) \
+                     : \
+                     : "r"(remote_info) \
+                     : "memory"); \
+    } while (0)
+
+#define XAI_REMOTE_SYNC_WAIT(src, dst, id, peer_npu) \
+    do { \
+        register unsigned long remote_info asm("a0") = \
+                (((peer_npu) & 0xfUL) << 56) | ((dst) & 0xffUL); \
+        asm volatile("addi x0, %0, 0\n\t" \
+                     ".insn r 0x5b, 0x2, 0x04, x" XAI_STR(src) \
+                     ", x10, x" XAI_STR(id) \
+                     : \
+                     : "r"(remote_info) \
+                     : "memory"); \
+    } while (0)
+
 #define XAI_SYNC_FILE_IO 3
 #define XAI_SYNC_CPU 4
 #define XAI_SYNC_NIU 8
@@ -104,15 +128,17 @@ main()
 
     xai_niu_ub_to_remote_ub(bytes, ub_source, 1, remote_ub_output);
     xai_niu_ub_to_remote_gm(bytes, ub_source, 2, remote_gm_output);
-    XAI_SYNC_SET(XAI_SYNC_NIU, XAI_SYNC_CPU, 2);
-    XAI_SYNC_WAIT(XAI_SYNC_NIU, XAI_SYNC_CPU, 2);
+    XAI_REMOTE_SYNC_SET(XAI_SYNC_NIU, XAI_SYNC_FILE_IO, 10, 1);
+    XAI_REMOTE_SYNC_SET(XAI_SYNC_NIU, XAI_SYNC_FILE_IO, 11, 2);
 
     write_reg_npu(npu1_mask);
+    XAI_REMOTE_SYNC_WAIT(XAI_SYNC_NIU, XAI_SYNC_FILE_IO, 10, 0);
     LoadDataFromNpu(bytes, remote_ub_output, output_file_index);
     XAI_SYNC_SET(XAI_SYNC_FILE_IO, XAI_SYNC_CPU, 3);
     XAI_SYNC_WAIT(XAI_SYNC_FILE_IO, XAI_SYNC_CPU, 3);
 
     write_reg_npu(npu2_mask);
+    XAI_REMOTE_SYNC_WAIT(XAI_SYNC_NIU, XAI_SYNC_FILE_IO, 11, 0);
     LoadDataFromNpu(bytes, remote_gm_output, output_file_index);
     XAI_SYNC_SET(XAI_SYNC_FILE_IO, XAI_SYNC_CPU, 4);
     XAI_SYNC_WAIT(XAI_SYNC_FILE_IO, XAI_SYNC_CPU, 4);

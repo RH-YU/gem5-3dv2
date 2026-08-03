@@ -17,13 +17,22 @@ struct SyncToken
     SyncEndpoint src = SyncEndpoint::Mte4;
     SyncEndpoint dst = SyncEndpoint::Mte4;
     uint8_t id = 0;
+    uint8_t peer_npu_id = 0xff;
 
     bool operator<(const SyncToken &other) const
     {
-        return std::tie(src, dst, id) <
-               std::tie(other.src, other.dst, other.id);
+        return std::tie(src, dst, id, peer_npu_id) <
+               std::tie(other.src, other.dst, other.id, other.peer_npu_id);
     }
 };
+
+struct RemoteSyncInfo
+{
+    uint8_t peer_npu_id = 0xff;
+    SyncEndpoint endpoint = SyncEndpoint::Mte4;
+};
+
+RemoteSyncInfo decode_remote_sync_info(const NpuCommand &command);
 
 struct SyncState
 {

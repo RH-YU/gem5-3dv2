@@ -96,6 +96,30 @@ check_niu_smoke_log()
         exit 1
     fi
 
+    if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=remote_sync_set .*sync_src=8 sync_dst=3 sync_id=10 remote_peer=1" "$log_file"; then
+        cat "$log_file"
+        echo "FAIL: NPU0 did not send the NIU-to-FileIo remote sync_set to NPU1." >&2
+        exit 1
+    fi
+
+    if ! grep -Eq "CPU\\[0\\]NPU\\[0\\] : op=remote_sync_set .*sync_src=8 sync_dst=3 sync_id=11 remote_peer=2" "$log_file"; then
+        cat "$log_file"
+        echo "FAIL: NPU0 did not send the NIU-to-FileIo remote sync_set to NPU2." >&2
+        exit 1
+    fi
+
+    if ! grep -Eq "CPU\\[0\\]NPU\\[1\\] : op=remote_sync_wait .*sync_src=8 sync_dst=3 sync_id=10 remote_peer=0" "$log_file"; then
+        cat "$log_file"
+        echo "FAIL: NPU1 FileIo did not wait for the remote NIU sync token from NPU0." >&2
+        exit 1
+    fi
+
+    if ! grep -Eq "CPU\\[0\\]NPU\\[2\\] : op=remote_sync_wait .*sync_src=8 sync_dst=3 sync_id=11 remote_peer=0" "$log_file"; then
+        cat "$log_file"
+        echo "FAIL: NPU2 FileIo did not wait for the remote NIU sync token from NPU0." >&2
+        exit 1
+    fi
+
     if ! grep -Eq "CPU\\[0\\]NPU\\[1\\] : op=LoadDataFromNpu .*storage_region=ub" "$log_file"; then
         cat "$log_file"
         echo "FAIL: NPU1 did not export remote UB data." >&2
