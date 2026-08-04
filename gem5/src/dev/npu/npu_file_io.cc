@@ -153,9 +153,7 @@ NpuTop::file_io_thread()
             if (command.command.opcode == Opcode::Sync) {
                 execute_sync(command);
             } else {
-                wait(transfer_delay(command.command.file_byte_count,
-                                    config.file_io_bytes_per_ns,
-                                    config.file_io_setup_delay));
+                wait_npu_cycles(1);
                 try {
                     if (as_file_io_opcode(command.command) ==
                         FileIoOpcode::LoadDataFromNpu) {
