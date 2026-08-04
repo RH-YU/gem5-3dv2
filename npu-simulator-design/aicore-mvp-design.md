@@ -4,7 +4,7 @@
 
 ## 1. 总体目标
 
-当前仿真器在 gem5 RV64 CPU 与 SystemC NPU 之间建立两类提交路径：MTE、Sync、Cube、Fixpipe、FileIo 仍通过 RISC-V `custom-2` XAI 编码提交；VCU 使用标准 RVV 指令编码，在 `--rvv-impl=npu` 时由 RVV NPU decoder 构造同一类 `NpuCommand`。NPU 在 SystemC 侧维护 GM、UB、L1、L0A/L0B/L0C、各模块 FIFO、同步 token，以及 NIU/NOC 互联状态；VCU context 由 VCU thread 内部状态维护。
+当前仿真器在 gem5 RV64 CPU 与 SystemC NPU 之间建立两类提交路径：MTE、Sync、Cube、Fixpipe、FileIo 仍通过 RISC-V `custom-2` XAI 编码提交；VCU 使用标准 RVV 指令编码，在 `--rvv-impl=npu` 时由 RVV NPU decoder 构造同一类 `NpuCommand`。NPU 在 SystemC 侧维护 GM、UB、L1、L0A/L0B/L0C、各模块 FIFO 和同步 token；VCU context 由 VCU thread 内部状态维护。
 
 当前支持的基础 VCU 数据流是：
 
@@ -27,13 +27,6 @@ L0A[8x16 fp16] * L0B[16x16 fp16] -> L0C[8x16 fp32]
 
 其中 FileIo 是仿真辅助能力，用于在 bin 文件和 NPU 存储单元之间导入/导出数据，不表示真实硬件文件系统。
 
-当前跨 core 数据流由 NIU/NOC 承担：
-
-```text
-core0 UB -> NIU -> NOC -> core1 UB/GM
-core0 remote_sync_set -> NIU -> NOC -> core1 remote_sync_wait
-```
-
 ## 2. 框架图
 
 ![gem5 + SystemC NPU architecture](images/gem5-systemc-npu-architecture.svg)
@@ -44,10 +37,10 @@ core0 remote_sync_set -> NIU -> NOC -> core1 remote_sync_wait
 |---|---|---|
 | XAI ISA decode | `arch/riscv/isa/decoder.isa`、`formats/xai.isa` | 解码 custom-2 MTE/Sync/Cube/Fixpipe/FileIo 指令，读取 GPR 快照，构造 `NpuCommand`，通过 direct-submit 提交 |
 | RVV NPU decode | `arch/riscv/isa/vector/npu/decoder.isa`、`formats/xai.isa` | 在 `--rvv-impl=npu` 下把 `vsetvli/vsetvl/vle32.v/vse32.v/vadd.vv` 映射为 VCU `NpuCommand` |
-| gem5 NPU cluster | `dev/npu/npu_command.*`、`npu_cluster.*` | 注册 CPU 可见 NPU command aperture，聚合一个或多个 NPU，处理广播、背压、CPU sync 和 NOC |
-| SystemC NPU top | `dev/npu/npu_top.*` | 持有 GM、UB、L1、L0A/L0B/L0C、scheduler、MTE、VCU、Cube、Fixpipe、FileIo、NIU、sync 状态 |
+| gem5 NPU cluster | `dev/npu/npu_command.*`、`npu_cluster.*` | 注册 CPU 可见 NPU command aperture，聚合一个或多个 NPU，处理广播、背压和 CPU sync |
+| SystemC NPU top | `dev/npu/npu_top.*` | 持有 GM、UB、L1、L0A/L0B/L0C、scheduler、MTE、VCU、Cube、Fixpipe、FileIo、sync 状态 |
 | 调度器 | `dev/npu/npu_scheduler.*` | 接收 ingress FIFO，按 opcode 路由到目标 engine FIFO |
-| 执行引擎 | `npu_mte*.cc`、`npu_vcu.cc`、`npu_cube.cc`、`npu_fixpipe.cc`、`npu_file_io.cc`、`npu_sync.cc`、`npu_niu.cc`、`npu_noc.cc` | 各模块独立 SystemC thread，按 FIFO 顺序执行命令 |
+| 执行引擎 | `npu_mte*.cc`、`npu_vcu.cc`、`npu_cube.cc`、`npu_fixpipe.cc`、`npu_file_io.cc`、`npu_sync.cc` | 各模块独立 SystemC thread，按 FIFO 顺序执行命令 |
 | VCU 操作表 | `npu_vcu_operation.*` | 将 VCU 内部子 opcode 映射到具体 handler，例如日志中的 `vload`、`vstore`、`vadd` |
 | 测试入口 | `npu-tests/scripts/build_gem5.sh`、`npu-tests/scripts/vcu.sh`、`npu-tests/scripts/cube.sh`、`npu-tests/scripts/multinpu.sh` | 按模块编译 bare-metal ELF，运行 gem5，比较 file I/O 输出 |
 
@@ -56,7 +49,7 @@ core0 remote_sync_set -> NIU -> NOC -> core1 remote_sync_wait
 当前 `Opcode` 是模块级粗分类，不把每条具体指令都摊平成顶层 opcode：
 
 ```text
-Mte4, Mte1, Mte2, Vcu, Cube, Fixpipe, Sync, FileIo, Niu
+Mte4, Mte1, Mte2, Vcu, Cube, Fixpipe, Sync, FileIo
 ```
 
 模块内部再用子 opcode 表示具体指令：
@@ -68,9 +61,8 @@ Mte2Opcode: UbToGm, UbToL1
 VcuOpcode: Nsetvl, Load, Store, Add
 CubeOpcode: MmaFp32_8x16x16, MmaFp16Fp32_8x16x16
 FixpipeOpcode: L0CToL1, L0CToUb
-SyncOpcode: Set, Wait, RemoteSet, RemoteWait
+SyncOpcode: Set, Wait
 FileIoOpcode: WriteDataToNpu, LoadDataFromNpu
-NiuOpcode: UbToRemoteUb, UbToRemoteGm
 ```
 
 标准 RVV `vsetvli/vsetvl` 在 NPU decoder 下会映射为内部 `Opcode::Vcu + VcuOpcode::Nsetvl`。它进入 VCU FIFO，执行时只更新当前 hart 的 VCU context，包括 `nvl` 和 `eew_bytes`，不写回 CPU GPR。`vle32.v/vse32.v/vadd.vv` 分别映射为内部 `Load/Store/Add`。
@@ -117,31 +109,10 @@ Fixpipe 负责将 Cube 输出搬出 L0C：
 同步指令仍使用 `sync_set(src, dst, id)` 和 `sync_wait(src, dst, id)`。当前端点定义为：
 
 ```text
-Mte4, Mte2, Vcu, FileIo, Cpu, Mte1, Cube, Fixpipe, Niu
+Mte4, Mte2, Vcu, FileIo, Cpu, Mte1, Cube, Fixpipe
 ```
 
 新增模块均拥有自己的 FIFO 和完成状态，因此可以独立作为 sync 的 source 或 destination。
-
-本地同步使用 `SyncOpcode::Set/Wait`。跨 NPU 同步使用 `SyncOpcode::RemoteSet/RemoteWait`：源 core 的 remote set 经 NIU/NOC 转发到目标 core，目标 core 的 remote wait 在目标端点等待该 token。remote sync 仍使用相同的 `src/dst/id` 语义，只是多了 remote peer 的路由信息。
-
-### 4.4 NIU 与 NOC
-
-NIU 负责 packet 化和收发，NOC 负责跨 NPU 转发。当前 packet 分两类：
-
-| packet 类型 | 作用 |
-|---|---|
-| Data | 搬运 UB/GM 数据 |
-| Sync | 搬运 remote sync token |
-
-trace 层面：
-
-| 信号 | 含义 |
-|---|---|
-| `niu.packet_sent_event` | packet 进入 NIU TX queue |
-| `niu.packet_received_event` | 目的 NIU 收到 packet |
-| `niu.ack_event` | NOC 对源 NIU 完成确认 |
-| `cluster.noc.inject_event` | packet 注入链路 |
-| `cluster.noc.deliver_event` | packet 到达目标 NIU |
 
 ## 5. CPU 到 NPU 的提交路径
 
@@ -161,7 +132,7 @@ NPU 侧有两级容量判断：
 1. scheduler ingress FIFO 是否有空间。
 2. 目标 engine FIFO 是否有空间。
 
-`NpuTop::can_accept()` 会根据命令路由检查目标队列。RVV `vsetvli/vsetvl` 映射后的内部 `Nsetvl` 归入 VCU engine，因此同样受 VCU FIFO 容量影响；其 context 由 VCU thread 持有并在执行时更新。NIU 命令则额外受 `niu.tx_queue` / `niu.rx_queue` 和 NOC 链路容量影响。
+`NpuTop::can_accept()` 会根据命令路由检查目标队列。RVV `vsetvli/vsetvl` 映射后的内部 `Nsetvl` 归入 VCU engine，因此同样受 VCU FIFO 容量影响；其 context 由 VCU thread 持有并在执行时更新。
 
 当任一目标 NPU 无法接收命令时，`NpuCluster` 返回 `DispatchStatus::Backpressured`。XAI 指令侧收到该状态后返回 gem5 `ReExec` fault，CPU 保持 PC 不前进，在后续 tick 重新执行同一条 XAI 指令。这样可以用最小改动实现“队列满时阻塞 CPU 并重试”。
 
@@ -180,21 +151,12 @@ Fixpipe    -> Fixpipe FIFO
 Sync set   -> source engine FIFO
 Sync wait  -> destination engine FIFO
 FileIo     -> file I/O FIFO
-Niu        -> NIU FIFO
 ```
 
 进入执行 FIFO 的命令会携带当时的 VCU context 视图。后续 `vsetvli/vsetvl` 只会影响之后进入 VCU FIFO 的命令，不会回改已经排队的命令。
 VCU context 只归 VCU thread 持有，sync state 只保存同步 token，不再混放 VCU 相关状态。
 
 同一 engine 内部严格 FIFO 顺序执行，不同 engine 之间可并行推进。跨 engine 的数据依赖不做自动分析，需要软件使用 `sync_set` 和 `sync_wait` 建立 token 依赖。
-
-NIU 的 packet 生命周期可以按以下顺序观察：
-
-1. `packet_sent_event`：packet 进入 NIU TX queue。
-2. `cluster.noc.inject_event`：NOC 从 TX queue 取走 packet 并注入链路。
-3. `cluster.noc.deliver_event`：packet 到达目标 NIU。
-4. `packet_received_event`：目标 NIU 解析 packet。
-5. `ack_event`：NOC 对源 NIU 回确认。
 
 ## 8. 存储模型
 
@@ -209,7 +171,7 @@ NIU 的 packet 生命周期可以按以下顺序观察：
 | L0B | `FlatMemory` | Cube B 矩阵输入，默认 64KB |
 | L0C | `FlatMemory` | Cube 计算输出，默认 64KB |
 
-MTE4 负责 `GM -> UB/L1`，MTE1 负责 `L1 -> GM/UB/L0A/L0B`，MTE2 负责 `UB -> GM/L1`，Fixpipe 负责 `L0C -> L1/UB`。VCU 只通过 UB load/store 访问 UB，不直接访问 GM/L1/L0。Cube 只读取 L0A/L0B 并写 L0C。NIU 负责 UB/GM 的跨 core 搬运，以及 remote sync token 传递。CPU 不通过普通 load/store 访问这些 NPU 私有存储。
+MTE4 负责 `GM -> UB/L1`，MTE1 负责 `L1 -> GM/UB/L0A/L0B`，MTE2 负责 `UB -> GM/L1`，Fixpipe 负责 `L0C -> L1/UB`。VCU 只通过 UB load/store 访问 UB，不直接访问 GM/L1/L0。Cube 只读取 L0A/L0B 并写 L0C。CPU 不通过普通 load/store 访问这些 NPU 私有存储。
 
 ## 9. VCU 扩展方式
 
@@ -230,7 +192,6 @@ VCU 后端指令扩展集中在 `npu_vcu_operation.*`，外部编码优先放在
 npu-tests/scripts/vcu.sh
 npu-tests/scripts/cube.sh
 npu-tests/scripts/multinpu.sh
-npu-tests/scripts/niu.sh
 ```
 
-`vcu.sh` 验证标准 RVV 编码进入 NPU VCU 后端后的 VADD 数据流和 VCU FIFO 背压观察，`multinpu.sh` 验证单 CPU 向多个 NPU 广播命令并产生各自 GM 输出，`cube.sh` 默认验证 fp32 与 fp16 两条 GM/L1/L0/Cube/Fixpipe/UB/GM 数据通路，也可以使用 `cube.sh fp32` 或 `cube.sh fp16` 单独运行，`niu.sh` 验证跨 NPU UB/GM 搬运和 remote sync token 通过 NIU/NOC 传递。
+`vcu.sh` 验证标准 RVV 编码进入 NPU VCU 后端后的 VADD 数据流和 VCU FIFO 背压观察，`multinpu.sh` 验证单 CPU 向多个 NPU 广播命令并产生各自 GM 输出，`cube.sh` 默认验证 fp32 与 fp16 两条 GM/L1/L0/Cube/Fixpipe/UB/GM 数据通路，也可以使用 `cube.sh fp32` 或 `cube.sh fp16` 单独运行。
